@@ -1,5 +1,5 @@
 {
-	"name": "wiremd",
+	"name": "@wiremd/core",
 	"version": "0.1.6",
 	"description": "Strict, bounded, server-side engineering schematic DSL compiler for Marked.",
 	"homepage": "https://johnowolabiidogun.dev/tools/wiremd/docs/overview",
