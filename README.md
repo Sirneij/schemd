@@ -1,15 +1,15 @@
-# wiremd
+# @wiremd/core
 
 **Compile bounded engineering diagrams into accessible inline SVG—without a browser runtime, DOM,
 layout engine, or graphics dependency.**
 
-`wiremd` is a strict TypeScript compiler for coordinate-authored electrical, digital, quantum, and
+`@wiremd/core` is a strict TypeScript compiler for coordinate-authored electrical, digital, quantum, and
 system-architecture diagrams. It is designed for trusted server and build boundaries: validate a
 small text DSL, produce intrinsically sized SVG, cache the result, and ship only markup to readers.
 The generic `ic`, `port`, and connection primitives can express UML-style component and architecture
-views; `wiremd` does not claim to implement the full UML class, sequence, or state-machine grammar.
+views; `@wiremd/core` does not claim to implement the full UML class, sequence, or state-machine grammar.
 
-## Why wiremd
+## Why @wiremd/core
 
 - **Zero runtime dependencies.** `marked` is a type-only peer integration; emitted compiler
   JavaScript does not import it.
@@ -65,7 +65,7 @@ const trustedSvg = renderSchematic(document, { ...fence, mode });
 
 ## Compiler architecture
 
-`wiremd` is a staged compiler, not a browser drawing widget:
+`@wiremd/core` is a staged compiler, not a browser drawing widget:
 
 ```text
 Markdown host / direct API
@@ -122,7 +122,7 @@ npm pack --dry-run --json
 wc -c dist/*.js
 ```
 
-Generated payload size is topology-dependent. `wiremd` enforces a 2,097,152-byte compiled SVG cap,
+Generated payload size is topology-dependent. `@wiremd/core` enforces a 2,097,152-byte compiled SVG cap,
 and its renderer tests guarantee the relative ordering `default < embedded-css < full` for an
 equivalent document.
 
@@ -149,7 +149,7 @@ IDs, labels, options, colors, and XML text are validated or escaped. Parsed ASTs
 and capability-branded; `renderSchematic` rejects forged or mutated document objects. The grammar
 uses no recursive rule and no data-dependent unbounded loop.
 
-> Treat compiler output as trusted only when it came directly from `wiremd`. Never pass arbitrary
+> Treat compiler output as trusted only when it came directly from `@wiremd/core`. Never pass arbitrary
 > user HTML through the framework examples below.
 
 ## Markdown fence
@@ -522,7 +522,7 @@ onBeforeUnmount(() => host.value?.removeEventListener('click', select));
 ### Angular
 
 Angular sanitizes ordinary HTML bindings. Bypass sanitization only for a string returned directly
-from your own server-side `wiremd` compiler boundary.
+from your own server-side `@wiremd/core` compiler boundary.
 
 ```ts
 import { Component, ElementRef, Input, OnChanges, ViewChild } from '@angular/core';
@@ -554,7 +554,7 @@ export class WiremdDiagramComponent implements OnChanges {
 
 ## Alternative Markdown parsers
 
-`wiremd` owns the DSL and SVG contracts, not Markdown tokenization. Adapters should intercept only
+`@wiremd/core` owns the DSL and SVG contracts, not Markdown tokenization. Adapters should intercept only
 the canonical `wiremd` fence and delegate every other token to the host parser.
 
 ### markdown-it
