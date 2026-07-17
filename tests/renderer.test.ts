@@ -136,7 +136,7 @@ R2.out -> R3.in #blue [ortho marker-start=dot marker-end=arrow]`,
 		expect(minimal).toContain('-marker-arrow)"');
 		expect(minimal.match(/<marker /g)).toHaveLength(2);
 		const responsive = renderSchematic(document, { ...markerFence, mode: 'embedded-css' });
-		expect(responsive).toContain('aria-label="2 grouped signal traces"');
+		expect(responsive).toContain('aria-label="2 grouped connections"');
 		expect(responsive).toContain('wire-batch-0-vector');
 		expect(responsive).toContain('schematic-glow-layer');
 
@@ -188,7 +188,7 @@ qgate:QX "Pauli & X" at (620, 130) hsl(270 80% 60%) [parameter="θ&lt;π" matrix
 		});
 		expect(html).toContain('d="M -48 -19.2 H -32"');
 		expect(html).toContain(
-			'<text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4">≥1</text>'
+			'<text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="14">≥1</text>'
 		);
 		expect(html).toContain('style="color:#112233;--schematic-vector:#112233"');
 		expect(html).toContain(
@@ -199,7 +199,7 @@ qgate:QX "Pauli & X" at (620, 130) hsl(270 80% 60%) [parameter="θ&lt;π" matrix
 		);
 		expect(html).toContain('aria-label="QX, qgate, Pauli &amp; X, θ&amp;lt;π, π/2');
 		expect(html).toContain(
-			'class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="-12"'
+			'class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="-14"'
 		);
 		expect(html).toContain('θ&amp;lt;π');
 	});
@@ -253,7 +253,7 @@ ic:U1 "Flight control multiplexer" at (390, 130) #cyan [left="SELECT_LONG" right
 		const second = renderSchematic(document, fence);
 		expect(first).toBe(second);
 		expect(first).toMatch(/id="schematic-[a-z0-9]+-title"/);
-		expect(first).toContain('1 component and 0 signal connections.');
+		expect(first).toContain('1 component and 0 connections.');
 	});
 
 	test('describes a singular connection', () => {
@@ -261,7 +261,7 @@ ic:U1 "Flight control multiplexer" at (390, 130) #cyan [left="SELECT_LONG" right
 			'resistor:R1 "A" at (80, 80) #amber\ncapacitor:C1 "B" at (200, 80) #blue\nR1.out -> C1.in #slate',
 			fence
 		);
-		expect(renderSchematic(document, fence)).toContain('2 components and 1 signal connection.');
+		expect(renderSchematic(document, fence)).toContain('2 components and 1 connection.');
 	});
 
 	test('guards renderer input when a caller bypasses parser validation', () => {

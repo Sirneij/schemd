@@ -13,6 +13,8 @@ export const MAX_SCHEMATIC_SOURCE_CHARACTERS = 131_072;
 export const MAX_SCHEMATIC_COMPONENTS = 512;
 /** Maximum directed connections accepted in one document. */
 export const MAX_SCHEMATIC_CONNECTIONS = 2_048;
+/** Maximum rendered orthogonal intersections before the crossing pass aborts. */
+export const MAX_SCHEMATIC_WIRE_CROSSINGS = 32_768;
 /** Maximum UTF-8 bytes the bounded SVG writer may emit. */
 export const MAX_SCHEMATIC_SVG_OUTPUT_BYTES = 2_097_152;
 
@@ -21,6 +23,7 @@ export const SCHEMATIC_LIMITS = Object.freeze({
 	sourceCharacters: MAX_SCHEMATIC_SOURCE_CHARACTERS,
 	components: MAX_SCHEMATIC_COMPONENTS,
 	connections: MAX_SCHEMATIC_CONNECTIONS,
+	wireCrossings: MAX_SCHEMATIC_WIRE_CROSSINGS,
 	svgOutputBytes: MAX_SCHEMATIC_SVG_OUTPUT_BYTES
 });
 

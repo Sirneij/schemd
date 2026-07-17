@@ -1,7 +1,7 @@
 {
 	"name": "@schemd/core",
 	"version": "0.1.1",
-	"description": "Strict, bounded, server-side engineering schematic DSL compiler for Marked.",
+	"description": "Zero-dependency text-to-SVG compiler for schematics and UML.",
 	"homepage": "https://johnowolabiidogun.dev/tools/schemd/docs/overview",
 	"bugs": {
 		"url": "https://github.com/Sirneij/schemd/issues"
@@ -23,6 +23,30 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./parser": {
+			"types": "./dist/parser.d.ts",
+			"import": "./dist/parser.js"
+		},
+		"./renderer": {
+			"types": "./dist/renderer.d.ts",
+			"import": "./dist/renderer.js"
+		},
+		"./layout": {
+			"types": "./dist/layout.d.ts",
+			"import": "./dist/layout.js"
+		},
+		"./math-label": {
+			"types": "./dist/math-label.d.ts",
+			"import": "./dist/math-label.js"
+		},
+		"./marked": {
+			"types": "./dist/marked-extension.d.ts",
+			"import": "./dist/marked-extension.js"
+		},
+		"./types": {
+			"types": "./dist/types.d.ts",
+			"import": "./dist/types.js"
 		}
 	},
 	"scripts": {
@@ -34,6 +58,11 @@
 	},
 	"peerDependencies": {
 		"marked": ">=17 <19"
+	},
+	"peerDependenciesMeta": {
+		"marked": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
 		"@vitest/coverage-v8": "^4.1.10",
@@ -50,7 +79,8 @@
 		"schematic",
 		"svg",
 		"compiler",
-		"engineering"
+		"engineering",
+		"uml"
 	],
 	"license": "MIT"
 }

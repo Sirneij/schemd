@@ -25,6 +25,7 @@ import { assertParsedSchematicDocument } from './parser.js';
 import {
 	CLASSICAL_GATE_KINDS,
 	SCHEMD_OUTPUT_MODES,
+	UML_COMPONENT_KINDS,
 	SchematicSyntaxError,
 	type ClassicalGateComponent,
 	type CompileSchematicOptions,
@@ -37,9 +38,12 @@ import {
 	type SchematicConnection,
 	type SchematicDocument,
 	type SchemdOutputMode,
-	type TransistorComponent
+	type TransistorComponent,
+	type UmlClassComponent,
+	type UmlComponent,
+	type UmlStateComponent
 } from './types.js';
-import { renderMathLabelTspans } from './math-label.js';
+import { mathLabelTextWidth, renderMathLabelTspans } from './math-label.js';
 
 /**
  * Legacy alias for the hard SVG allocation ceiling.
@@ -50,7 +54,7 @@ export const MAX_SVG_OUTPUT_BYTES = MAX_SCHEMATIC_SVG_OUTPUT_BYTES;
 
 /** Minimal theme-aware vector styles embedded by non-default output modes. */
 const STATIC_SVG_STYLES =
-	'.schematic-token{fill:none;stroke:var(--schematic-vector,var(--schematic-vector-fallback,currentColor));stroke-linecap:round;stroke-linejoin:round;stroke-width:var(--schematic-stroke-width,1.65);vector-effect:non-scaling-stroke}.schematic-node-fill{fill:var(--schematic-vector,var(--schematic-vector-fallback,currentColor))}.schematic-designator,.schematic-label,.schematic-gate-symbol,.schematic-quantum-detail,.schematic-pin-label{fill:currentColor}.schematic-surface{fill:var(--schematic-surface,transparent)}.schematic-grid-line{fill:none;stroke:var(--schematic-grid,currentColor);stroke-width:1;opacity:.12;vector-effect:non-scaling-stroke}';
+	'.schematic-token{fill:none;stroke:var(--schematic-vector,var(--schematic-vector-fallback,currentColor));stroke-linecap:round;stroke-linejoin:round;stroke-width:var(--schematic-stroke-width,1.65);vector-effect:non-scaling-stroke}.schematic-node-fill{fill:var(--schematic-vector,var(--schematic-vector-fallback,currentColor))}.schematic-designator,.schematic-label,.schematic-gate-symbol,.schematic-quantum-detail,.schematic-pin-label,.schematic-uml-text,.schematic-connection-label{fill:currentColor}.schematic-uml-row{font-size:12px}.schematic-uml-stereotype{font-size:11px}.schematic-connection-label{font-size:11px;paint-order:stroke;stroke:var(--schematic-surface,#fff);stroke-width:4;stroke-linejoin:round}.schematic-surface{fill:var(--schematic-surface,transparent)}.schematic-grid-line{fill:none;stroke:var(--schematic-grid,currentColor);stroke-width:1;opacity:.12;vector-effect:non-scaling-stroke}';
 
 /** Keyboard and pointer hotspot rules emitted only by `full` mode. */
 const HOOK_SVG_STYLES =
@@ -228,7 +232,7 @@ function svgNumber(value: number): string {
  * @returns Length clamped to the inclusive range from one to `maximum`.
  */
 function fittedTextLength(value: string, maximum: number, advance: number): number {
-	return Math.max(1, Math.min(Array.from(value).length * advance, maximum));
+	return Math.max(1, Math.min(Math.ceil(mathLabelTextWidth(value, advance)), maximum));
 }
 
 /**
@@ -256,6 +260,11 @@ function stableHash(value: string): string {
  */
 function isClassicalGate(component: SchematicComponent): component is ClassicalGateComponent {
 	return CLASSICAL_GATE_KINDS.includes(component.kind as ClassicalGateComponent['kind']);
+}
+
+/** Narrow a component to the UML renderer union. */
+function isUmlComponent(component: SchematicComponent): component is UmlComponent {
+	return UML_COMPONENT_KINDS.includes(component.kind as UmlComponent['kind']);
 }
 
 /**
@@ -404,7 +413,7 @@ function iecGate(component: ClassicalGateComponent, paint: string): string {
 		xor: '=1',
 		not: '1'
 	};
-	return `<rect ${paint} x="-32" y="${-height / 2}" width="64" height="${height}" rx="2" /><text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4">${symbol[component.kind]}</text>${inversionBubbles(component, paint)}${gateStubs(component, paint)}`;
+	return `<rect ${paint} x="-32" y="${-height / 2}" width="64" height="${height}" rx="2" /><text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="14">${symbol[component.kind]}</text>${inversionBubbles(component, paint)}${gateStubs(component, paint)}`;
 }
 
 /**
@@ -442,11 +451,11 @@ function quantumText(component: QuantumGateComponent): string {
 		(value): value is string => value !== undefined && value !== ''
 	);
 	const rows = [component.label, ...details];
-	const start = -((rows.length - 1) * 10) / 2 + 3;
+	const start = -((rows.length - 1) * 12) / 2 + 4;
 	return rows
 		.map(
 			(value, index) =>
-				`<text class="${index === 0 ? 'schematic-gate-symbol' : 'schematic-quantum-detail'}" fill="currentColor" stroke="none" x="0" y="${start + index * 10}" textLength="${fittedTextLength(value, 56, index === 0 ? 7 : 5)}" lengthAdjust="spacingAndGlyphs">${renderMathLabelTspans(value)}</text>`
+				`<text class="${index === 0 ? 'schematic-gate-symbol' : 'schematic-quantum-detail'}" fill="currentColor" stroke="none" x="0" y="${start + index * 12}" text-anchor="middle" font-size="${index === 0 ? 14 : 10}" textLength="${fittedTextLength(value, 56, index === 0 ? 7 : 5)}" lengthAdjust="spacingAndGlyphs">${renderMathLabelTspans(value)}</text>`
 		)
 		.join('');
 }
@@ -563,17 +572,17 @@ function icPinMarkup(
 				4
 			);
 			if (side === 'left') {
-				return `<path ${paint} d="M ${x} ${y} H ${-component.bodyWidth / 2}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${-component.bodyWidth / 2 + 5}" y="${y + 3}" text-anchor="start" textLength="${horizontalTextLength}" lengthAdjust="spacingAndGlyphs">${escapeXml(pin)}</text>`;
+				return `<path ${paint} d="M ${x} ${y} H ${-component.bodyWidth / 2}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${-component.bodyWidth / 2 + 5}" y="${y + 3}" text-anchor="start" font-size="10" textLength="${horizontalTextLength}" lengthAdjust="spacingAndGlyphs">${escapeXml(pin)}</text>`;
 			}
 			if (side === 'right') {
-				return `<path ${paint} d="M ${component.bodyWidth / 2} ${y} H ${x}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${component.bodyWidth / 2 - 5}" y="${y + 3}" text-anchor="end" textLength="${horizontalTextLength}" lengthAdjust="spacingAndGlyphs">${escapeXml(pin)}</text>`;
+				return `<path ${paint} d="M ${component.bodyWidth / 2} ${y} H ${x}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${component.bodyWidth / 2 - 5}" y="${y + 3}" text-anchor="end" font-size="10" textLength="${horizontalTextLength}" lengthAdjust="spacingAndGlyphs">${escapeXml(pin)}</text>`;
 			}
 			if (side === 'top') {
 				const labelY = -component.bodyHeight / 2 + 5;
-				return `<path ${paint} d="M ${x} ${y} V ${-component.bodyHeight / 2}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${x}" y="${labelY}" text-anchor="start" textLength="${verticalTextLength}" lengthAdjust="spacingAndGlyphs" transform="rotate(90 ${x} ${labelY})">${escapeXml(pin)}</text>`;
+				return `<path ${paint} d="M ${x} ${y} V ${-component.bodyHeight / 2}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${x}" y="${labelY}" text-anchor="start" font-size="10" textLength="${verticalTextLength}" lengthAdjust="spacingAndGlyphs" transform="rotate(90 ${x} ${labelY})">${escapeXml(pin)}</text>`;
 			}
 			const labelY = component.bodyHeight / 2 - 5;
-			return `<path ${paint} d="M ${x} ${component.bodyHeight / 2} V ${y}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${x}" y="${labelY}" text-anchor="start" textLength="${verticalTextLength}" lengthAdjust="spacingAndGlyphs" transform="rotate(-90 ${x} ${labelY})">${escapeXml(pin)}</text>`;
+			return `<path ${paint} d="M ${x} ${component.bodyHeight / 2} V ${y}" /><text class="schematic-pin-label" fill="currentColor" stroke="none" x="${x}" y="${labelY}" text-anchor="start" font-size="10" textLength="${verticalTextLength}" lengthAdjust="spacingAndGlyphs" transform="rotate(-90 ${x} ${labelY})">${escapeXml(pin)}</text>`;
 		})
 		.join('');
 }
@@ -588,7 +597,77 @@ function icPinMarkup(
 function integratedCircuitShape(component: IntegratedCircuitComponent, paint: string): string {
 	const left = -component.bodyWidth / 2;
 	const top = -component.bodyHeight / 2;
-	return `<rect ${paint} x="${left}" y="${top}" width="${component.bodyWidth}" height="${component.bodyHeight}" rx="3" />${icPinMarkup(component, 'left', paint)}${icPinMarkup(component, 'right', paint)}${icPinMarkup(component, 'top', paint)}${icPinMarkup(component, 'bottom', paint)}<text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4" textLength="${fittedTextLength(component.label, component.bodyWidth - 12, 7)}" lengthAdjust="spacingAndGlyphs">${renderMathLabelTspans(component.label)}</text>`;
+	return `<rect ${paint} x="${left}" y="${top}" width="${component.bodyWidth}" height="${component.bodyHeight}" rx="3" />${icPinMarkup(component, 'left', paint)}${icPinMarkup(component, 'right', paint)}${icPinMarkup(component, 'top', paint)}${icPinMarkup(component, 'bottom', paint)}<text class="schematic-gate-symbol" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="12" textLength="${fittedTextLength(component.label, component.bodyWidth - 12, 7)}" lengthAdjust="spacingAndGlyphs">${renderMathLabelTspans(component.label)}</text>`;
+}
+
+/** Serialize one left-aligned UML compartment row. */
+function umlRow(value: string, x: number, y: number): string {
+	return `<text class="schematic-uml-text schematic-uml-row" fill="currentColor" stroke="none" x="${svgNumber(x)}" y="${svgNumber(y)}" font-size="12">${escapeXml(value)}</text>`;
+}
+
+/** Render a dynamically sized three-compartment UML class. */
+function umlClassShape(component: UmlClassComponent, paint: string): string {
+	const left = -component.bodyWidth / 2;
+	const top = -component.bodyHeight / 2;
+	const headerHeight = 36 + (component.stereotype === undefined ? 0 : 14);
+	const attributeHeight = Math.max(24, component.attributes.length * 16 + 8);
+	const attributeSeparator = top + headerHeight;
+	const operationSeparator = attributeSeparator + attributeHeight;
+	const stereotype =
+		component.stereotype === undefined
+			? ''
+			: `<text class="schematic-uml-text schematic-uml-stereotype" fill="currentColor" stroke="none" x="0" y="${svgNumber(top + 13)}" text-anchor="middle" font-size="11">«${escapeXml(component.stereotype)}»</text>`;
+	const nameY = top + (component.stereotype === undefined ? 23 : 32);
+	const attributes = component.attributes
+		.map((row, index) => umlRow(row, left + 8, attributeSeparator + 17 + index * 16))
+		.join('');
+	const operations = component.operations
+		.map((row, index) => umlRow(row, left + 8, operationSeparator + 17 + index * 16))
+		.join('');
+	return `<rect ${paint} x="${svgNumber(left)}" y="${svgNumber(top)}" width="${svgNumber(component.bodyWidth)}" height="${svgNumber(component.bodyHeight)}" rx="2" /><path ${paint} d="M ${svgNumber(left)} ${svgNumber(attributeSeparator)} H ${svgNumber(-left)} M ${svgNumber(left)} ${svgNumber(operationSeparator)} H ${svgNumber(-left)}" />${stereotype}<text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="${svgNumber(nameY)}" text-anchor="middle" font-size="13" font-weight="600">${renderMathLabelTspans(component.label)}</text>${attributes}${operations}`;
+}
+
+/** Render a UML state and its optional behavior compartment. */
+function umlStateShape(component: UmlStateComponent, paint: string): string {
+	const left = -component.bodyWidth / 2;
+	const top = -component.bodyHeight / 2;
+	const separator = top + 32;
+	const rows = component.details
+		.map((row, index) => umlRow(row, left + 8, separator + 17 + index * 16))
+		.join('');
+	return `<rect ${paint} x="${svgNumber(left)}" y="${svgNumber(top)}" width="${svgNumber(component.bodyWidth)}" height="${svgNumber(component.bodyHeight)}" rx="10" />${component.details.length === 0 ? '' : `<path ${paint} d="M ${svgNumber(left)} ${svgNumber(separator)} H ${svgNumber(-left)}" />`}<text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="${svgNumber(top + 21)}" text-anchor="middle" font-size="13" font-weight="600">${renderMathLabelTspans(component.label)}</text>${rows}`;
+}
+
+/** Render any first-class UML component in local coordinates. */
+function umlComponentShape(component: UmlComponent, paint: string, nodePaint: string): string {
+	if (component.kind === 'class') return umlClassShape(component, paint);
+	if (component.kind === 'state') return umlStateShape(component, paint);
+	switch (component.kind) {
+		case 'actor':
+			return `<circle ${paint} cx="0" cy="-28" r="9" /><path ${paint} d="M 0 -19 V 12 M -20 -5 H 20 M 0 12 L -17 37 M 0 12 L 17 37" /><text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="49" text-anchor="middle" font-size="12">${renderMathLabelTspans(component.label)}</text>`;
+		case 'usecase':
+			return `<ellipse ${paint} cx="0" cy="0" rx="${svgNumber(component.bodyWidth / 2)}" ry="${svgNumber(component.bodyHeight / 2)}" /><text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="13">${renderMathLabelTspans(component.label)}</text>`;
+		case 'lifeline': {
+			const top = -component.bodyHeight / 2;
+			const left = -component.bodyWidth / 2;
+			return `<rect ${paint} x="${svgNumber(left)}" y="${svgNumber(top)}" width="${svgNumber(component.bodyWidth)}" height="32" rx="2" /><text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="${svgNumber(top + 21)}" text-anchor="middle" font-size="12">${renderMathLabelTspans(component.label)}</text><path ${paint} stroke-dasharray="6 5" d="M 0 ${svgNumber(top + 32)} V ${svgNumber(component.bodyHeight / 2)}" />`;
+		}
+		case 'note': {
+			const left = -component.bodyWidth / 2;
+			const top = -component.bodyHeight / 2;
+			const right = component.bodyWidth / 2;
+			return `<path ${paint} d="M ${svgNumber(left)} ${svgNumber(top)} H ${svgNumber(right - 14)} L ${svgNumber(right)} ${svgNumber(top + 14)} V ${svgNumber(-top)} H ${svgNumber(left)} Z M ${svgNumber(right - 14)} ${svgNumber(top)} V ${svgNumber(top + 14)} H ${svgNumber(right)}" /><text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="12">${renderMathLabelTspans(component.label)}</text>`;
+		}
+		case 'package': {
+			const left = -component.bodyWidth / 2;
+			const top = -component.bodyHeight / 2;
+			return `<path ${paint} d="M ${svgNumber(left)} ${svgNumber(top + 12)} V ${svgNumber(-top)} H ${svgNumber(-left)} V ${svgNumber(top)} H ${svgNumber(left + Math.min(54, component.bodyWidth / 2))} L ${svgNumber(left + Math.min(64, component.bodyWidth / 2 + 10))} ${svgNumber(top + 12)} Z" /><text class="schematic-uml-text" fill="currentColor" stroke="none" x="0" y="4" text-anchor="middle" font-size="13">${renderMathLabelTspans(component.label)}</text>`;
+		}
+		case 'initial':
+			return `<circle ${nodePaint} cx="0" cy="0" r="10" />`;
+		case 'final':
+			return `<circle ${paint} cx="0" cy="0" r="11" /><circle ${nodePaint} cx="0" cy="0" r="6" />`;
+	}
 }
 
 /**
@@ -607,6 +686,7 @@ function componentShape(
 	if (isClassicalGate(component)) {
 		return component.standard === 'iec' ? iecGate(component, paint) : ieeeGate(component, paint);
 	}
+	if (isUmlComponent(component)) return umlComponentShape(component, paint, nodePaint);
 	switch (component.kind) {
 		case 'resistor':
 			return `<path ${paint} d="M -42 0 H -26 L -20 -12 L -10 12 L 0 -12 L 10 12 L 20 -12 L 26 0 H 42" />`;
@@ -640,7 +720,12 @@ function componentShape(
  * @returns Stable symbol key, or `undefined` when geometry is instance-specific.
  */
 function reusableSymbolKey(component: SchematicComponent): string | undefined {
-	if (isClassicalGate(component) || component.kind === 'qgate' || component.kind === 'ic') {
+	if (
+		isClassicalGate(component) ||
+		isUmlComponent(component) ||
+		component.kind === 'qgate' ||
+		component.kind === 'ic'
+	) {
 		return undefined;
 	}
 	if (component.kind === 'diode') return `diode-${component.diodeType}`;
@@ -686,11 +771,17 @@ function connectionMarkup(
 	const target = escapeXml(`${connection.to.componentId}.${connection.to.port}`);
 	const traceId = `${idPrefix}-wire-${index}-vector`;
 	const dataAttributes = ` data-wire-source="${source}" data-wire-target="${target}"`;
-	const accessibility = ` tabindex="0" role="group" aria-label="Signal from ${source} to ${target}"`;
+	/* v8 ignore next -- parsed documents always materialize relation; fallback preserves old typed ASTs. */
+	const relation = connection.relation ?? 'signal';
+	const accessibility = ` tabindex="0" role="group" aria-label="${escapeXml(relation)} from ${source} to ${target}"`;
 	const vectorId = ` id="${traceId}"`;
 	const markerAttributes = connectionMarkerAttributes(connection, idPrefix);
 	const glow = `<use class="schematic-glow-layer" href="#${traceId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />`;
-	return `<g class="schematic-wire"${dataAttributes}${accessibility}><path${vectorId} ${colorAttributes(connection.color, 'schematic-trace')} d="${routed.d}"${markerAttributes} />${glow}<circle ${colorAttributes(connection.color, 'schematic-node-fill')} cx="${svgNumber(end.x)}" cy="${svgNumber(end.y)}" r="3" /></g>`;
+	const endpoint =
+		relation === 'signal' && connection.markerEnd === 'none'
+			? `<circle ${colorAttributes(connection.color, 'schematic-node-fill')} cx="${svgNumber(end.x)}" cy="${svgNumber(end.y)}" r="3" />`
+			: '';
+	return `<g class="schematic-wire"${dataAttributes}${accessibility}><path${vectorId} ${colorAttributes(connection.color, 'schematic-trace')} d="${routed.d}"${markerAttributes} />${glow}${endpoint}${connectionLabelMarkup(connection, routed)}</g>`;
 }
 
 /**
@@ -703,7 +794,50 @@ function connectionMarkup(
 function connectionMarkerAttributes(connection: SchematicConnection, idPrefix: string): string {
 	const start = connection.markerStart;
 	const end = connection.markerEnd;
-	return `${start === 'none' ? '' : ` marker-start="url(#${idPrefix}-marker-${start})"`}${end === 'none' ? '' : ` marker-end="url(#${idPrefix}-marker-${end})"`}`;
+	return `${start === 'none' ? '' : ` marker-start="url(#${idPrefix}-marker-${start})"`}${end === 'none' ? '' : ` marker-end="url(#${idPrefix}-marker-${end})"`}${connection.dashed === true ? ' stroke-dasharray="7 5"' : ''}`;
+}
+
+/** Locate the half-length point of a routed polyline for connector labels. */
+function connectionLabelPoint(route: RoutedConnection): { x: number; y: number } {
+	if (route.curve === 'bezier' && route.points.length >= 4) {
+		const a = route.points[0]!;
+		const b = route.points[1]!;
+		const c = route.points[2]!;
+		const d = route.points[3]!;
+		return {
+			x: (a.x + 3 * b.x + 3 * c.x + d.x) / 8,
+			y: (a.y + 3 * b.y + 3 * c.y + d.y) / 8
+		};
+	}
+	let total = 0;
+	for (let index = 1; index < route.points.length; index += 1) {
+		total +=
+			Math.abs(route.points[index]!.x - route.points[index - 1]!.x) +
+			Math.abs(route.points[index]!.y - route.points[index - 1]!.y);
+	}
+	let remaining = total / 2;
+	for (let index = 1; index < route.points.length; index += 1) {
+		const start = route.points[index - 1]!;
+		const end = route.points[index]!;
+		const length = Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+		if (remaining <= length) {
+			const ratio = length === 0 ? 0 : remaining / length;
+			return { x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio };
+		}
+		remaining -= length;
+	}
+	/* v8 ignore next -- finite routes with at least two points always contain their half length. */
+	return route.points.at(-1)!;
+}
+
+/** Render an optional UML or signal connector label with an opaque text halo. */
+function connectionLabelMarkup(
+	connection: SchematicConnection,
+	route: RoutedConnection
+): string {
+	if (connection.label === undefined) return '';
+	const point = connectionLabelPoint(route);
+	return `<text class="schematic-connection-label" fill="currentColor" stroke="none" x="${svgNumber(point.x)}" y="${svgNumber(point.y - 7)}" text-anchor="middle" font-size="11">${renderMathLabelTspans(connection.label)}</text>`;
 }
 
 /**
@@ -747,6 +881,8 @@ function compactConnectionMarkup(
 		traces: string[];
 		/** Circular endpoint subpaths aligned with the traces. */
 		endpoints: string[];
+		/** Individually positioned connector labels. */
+		labels: string[];
 	}
 	const batches = new Map<string, Batch>();
 	for (const [index, connection] of connections.entries()) {
@@ -754,24 +890,30 @@ function compactConnectionMarkup(
 		const key = `${colorKey(connection.color)}|${markerAttributes}`;
 		let batch = batches.get(key);
 		if (batch === undefined) {
-			batch = { color: connection.color, markerAttributes, traces: [], endpoints: [] };
+			batch = { color: connection.color, markerAttributes, traces: [], endpoints: [], labels: [] };
 			batches.set(key, batch);
 		}
 		const routed = routes[index]!;
 		const end = routed.points.at(-1)!;
 		batch.traces.push(routed.d);
-		batch.endpoints.push(
-			`M ${svgNumber(end.x - 3)} ${svgNumber(end.y)} a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0`
-		);
+		/* v8 ignore next -- parsed documents always materialize relation; fallback preserves old typed ASTs. */
+		if ((connection.relation ?? 'signal') === 'signal' && connection.markerEnd === 'none') {
+			batch.endpoints.push(
+				`M ${svgNumber(end.x - 3)} ${svgNumber(end.y)} a 3 3 0 1 0 6 0 a 3 3 0 1 0 -6 0`
+			);
+		}
+		const label = connectionLabelMarkup(connection, routed);
+		if (label !== '') batch.labels.push(label);
 	}
 	return Array.from(batches.values(), (batch, index) => {
 		const tracePaint = colorAttributes(batch.color, 'schematic-trace');
 		const nodePaint = colorAttributes(batch.color, 'schematic-node-fill');
 		const traceId = `${idPrefix}-wire-batch-${index}-vector`;
 		const trace = `<path${embedVisuals ? ` id="${traceId}"` : ''} ${tracePaint} d="${batch.traces.join(' ')}"${batch.markerAttributes} />`;
-		const endpoints = `<path ${nodePaint} d="${batch.endpoints.join(' ')}" />`;
-		if (!embedVisuals) return trace + endpoints;
-		return `<g class="schematic-wire" tabindex="0" role="group" aria-label="${batch.traces.length} grouped signal trace${batch.traces.length === 1 ? '' : 's'}">${trace}<use class="schematic-glow-layer" href="#${traceId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />${endpoints}</g>`;
+		const endpoints = batch.endpoints.length === 0 ? '' : `<path ${nodePaint} d="${batch.endpoints.join(' ')}" />`;
+		const labels = batch.labels.join('');
+		if (!embedVisuals) return trace + endpoints + labels;
+		return `<g class="schematic-wire" tabindex="0" role="group" aria-label="${batch.traces.length} grouped connection${batch.traces.length === 1 ? '' : 's'}">${trace}<use class="schematic-glow-layer" href="#${traceId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />${endpoints}${labels}</g>`;
 	}).join('');
 }
 
@@ -862,7 +1004,10 @@ function componentMarkup(
 		symbolId === undefined
 			? `<g${vectorIdAttribute} class="schematic-component-vector">${componentShape(component)}</g>`
 			: `<use${vectorIdAttribute} ${colorAttributes(component.color, 'schematic-component-vector')} href="#${symbolId}" />`;
-	return `<g class="schematic-component"${dataAttributes} transform="translate(${svgNumber(component.x)} ${svgNumber(component.y)})"${accessibility}>${vector}${glow}<text class="schematic-designator" fill="currentColor" stroke="none" x="0" y="${anchors.designatorY}" text-anchor="middle" textLength="${anchors.designatorWidth}" lengthAdjust="spacingAndGlyphs">${id}</text><text class="schematic-label" fill="currentColor" stroke="none" x="0" y="${anchors.labelY}" text-anchor="middle" textLength="${anchors.labelWidth}" lengthAdjust="spacingAndGlyphs">${renderedLabel}</text>${hotspots}</g>`;
+	const externalLabels = isUmlComponent(component)
+		? ''
+		: `<text class="schematic-designator" fill="currentColor" stroke="none" x="0" y="${anchors.designatorY}" text-anchor="middle" font-size="12" textLength="${anchors.designatorWidth}" lengthAdjust="spacingAndGlyphs">${id}</text><text class="schematic-label" fill="currentColor" stroke="none" x="0" y="${anchors.labelY}" text-anchor="middle" font-size="12" textLength="${anchors.labelWidth}" lengthAdjust="spacingAndGlyphs">${renderedLabel}</text>`;
+	return `<g class="schematic-component"${dataAttributes} transform="translate(${svgNumber(component.x)} ${svgNumber(component.y)})"${accessibility}>${vector}${glow}${externalLabels}${hotspots}</g>`;
 }
 
 /**
@@ -884,7 +1029,9 @@ export function renderSchematic(
 ): string {
 	assertParsedSchematicDocument(document);
 	const normalized = normalizeCompileOptions(options);
-	validateDocumentGeometry(document, normalized);
+	const components = new Map(document.components.map((component) => [component.id, component]));
+	const routedConnections = routeConnections(document.connections, components, normalized.bounds);
+	validateDocumentGeometry(document, normalized, routedConnections);
 	const signature = `${normalized.bounds.width}x${normalized.bounds.height}:${normalized.title}:${JSON.stringify(document)}`;
 	const candidatePrefix = (normalized.idPrefix ?? `schematic-${stableHash(signature)}`).replace(
 		/[^A-Za-z0-9_-]/g,
@@ -901,8 +1048,6 @@ export function renderSchematic(
 	const glowId = `${safePrefix}-schematic-glow-filter`;
 	const styles = normalized.mode === 'embedded-css' || normalized.mode === 'full';
 	const hooks = normalized.mode === 'full';
-	const components = new Map(document.components.map((component) => [component.id, component]));
-	const routedConnections = routeConnections(document.connections, components);
 	const reusableSymbols = new Map<string, { id: string; component: SchematicComponent }>();
 	for (const component of document.components) {
 		const key = reusableSymbolKey(component);
@@ -912,7 +1057,7 @@ export function renderSchematic(
 	}
 	const title = escapeXml(normalized.title);
 	const componentCount = document.components.length;
-	const description = `${componentCount} component${componentCount === 1 ? '' : 's'} and ${document.connections.length} signal connection${document.connections.length === 1 ? '' : 's'}.`;
+	const description = `${componentCount} component${componentCount === 1 ? '' : 's'} and ${document.connections.length} connection${document.connections.length === 1 ? '' : 's'}.`;
 	const writer = new BoundedSvgWriter();
 	const hookStyles = hooks ? HOOK_SVG_STYLES : '';
 	const interactionStyles = styles ? INTERACTIVE_SVG_STYLES : '';
@@ -925,7 +1070,7 @@ export function renderSchematic(
 	const usedMarkers = new Set(
 		document.connections.flatMap((connection) => [connection.markerStart, connection.markerEnd])
 	);
-	const markerDefinitions = `${usedMarkers.has('arrow') ? `<marker id="${safePrefix}-marker-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 8 4 0 8Z" fill="context-stroke" /></marker>` : ''}${usedMarkers.has('dot') ? `<marker id="${safePrefix}-marker-dot" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="5" markerHeight="5"><circle cx="4" cy="4" r="3" fill="context-stroke" /></marker>` : ''}`;
+	const markerDefinitions = `${usedMarkers.has('arrow') ? `<marker id="${safePrefix}-marker-arrow" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M0 0 8 4 0 8Z" fill="context-stroke" /></marker>` : ''}${usedMarkers.has('open-arrow') ? `<marker id="${safePrefix}-marker-open-arrow" viewBox="0 0 9 10" refX="9" refY="5" markerWidth="9" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M0 0 9 5 0 10" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker>` : ''}${usedMarkers.has('dot') ? `<marker id="${safePrefix}-marker-dot" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse"><circle cx="4" cy="4" r="3" fill="context-stroke" /></marker>` : ''}${usedMarkers.has('triangle') ? `<marker id="${safePrefix}-marker-triangle" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M0 1 11 6 0 11Z" fill="var(--schematic-surface,#fff)" stroke="context-stroke" stroke-width="1.5" /></marker>` : ''}${usedMarkers.has('diamond') ? `<marker id="${safePrefix}-marker-diamond" viewBox="0 0 13 12" refX="12" refY="6" markerWidth="13" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M0 6 6 1 12 6 6 11Z" fill="var(--schematic-surface,#fff)" stroke="context-stroke" stroke-width="1.5" /></marker>` : ''}${usedMarkers.has('diamond-filled') ? `<marker id="${safePrefix}-marker-diamond-filled" viewBox="0 0 13 12" refX="12" refY="6" markerWidth="13" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse" overflow="visible"><path d="M0 6 6 1 12 6 6 11Z" fill="context-stroke" stroke="context-stroke" /></marker>` : ''}`;
 	const embeddedDefinitions = styles
 		? `<style>${STATIC_SVG_STYLES}${hookStyles}${interactionStyles}</style><pattern id="${gridId}" width="20" height="20" patternUnits="userSpaceOnUse"><path class="schematic-grid-line" d="M20 0H0V20" /></pattern>${glowFilter}`
 		: '';

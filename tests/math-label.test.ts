@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest';
 import {
 	mathLabelGlyphLength,
 	mathLabelText,
+	mathLabelTextWidth,
 	parseMathLabel,
 	renderMathLabelTspans
 } from '../src/math-label.js';
@@ -32,13 +33,47 @@ describe('micro math labels', () => {
 		expect(renderMathLabelTspans('10k & stable')).toBe('10k &amp; stable');
 		expect(renderMathLabelTspans(`<&>"'`)).toBe('&lt;&amp;&gt;&quot;&#39;');
 		expect(mathLabelText('\\custom{x}')).toBe('\\customx');
+		expect(mathLabelText('}')).toBe('}');
 		expect(mathLabelText('\\')).toBe('\\');
 		expect(parseMathLabel('x_a_b')).toEqual([
 			{ kind: 'text', value: 'x' },
 			{ kind: 'subscript', value: 'ab' }
 		]);
 		expect(mathLabelText('x_{\\pi}')).toBe('xπ');
+		expect(mathLabelText('x_\\pi')).toBe('xπ');
 		expect(renderMathLabelTspans('\u0000')).toBe('�');
-		expect(parseMathLabel('dangling_{value')).toEqual([{ kind: 'text', value: 'dangling_value' }]);
+		expect(parseMathLabel('dangling_{value')).toEqual([
+			{ kind: 'text', value: 'dangling_{value' }
+		]);
+		expect(mathLabelText('\\{raw\\} \\_ \\^')).toBe('{raw} _ ^');
+	});
+
+	test('keeps nested scripts at absolute baselines without recursive parsing', () => {
+		const parsed = parseMathLabel('A_{x_{sub}} e^{x^2} Z');
+		expect(parsed).toContainEqual({
+			kind: 'subscript',
+			value: 'sub',
+			fontScale: 0.48999999999999994,
+			baselineShiftEm: 0.595
+		});
+		expect(parsed).toContainEqual({
+			kind: 'superscript',
+			value: '2',
+			fontScale: 0.48999999999999994,
+			baselineShiftEm: -0.935
+		});
+		const rendered = renderMathLabelTspans('A_{x_{sub}} tail');
+		expect(rendered).toContain('font-size="49%"');
+		expect(rendered).toContain('<tspan dy="-0.595em" font-size="100%"> tail</tspan>');
+		expect(mathLabelText('A_{x_{sub}}')).toBe('Axsub');
+		expect(mathLabelTextWidth('Ω∞')).toBeGreaterThan(mathLabelTextWidth('Ω'));
+		expect(renderMathLabelTspans('A_{x_{sub}}')).toContain(
+			'<tspan dy="-0.595em" font-size="100%"></tspan>'
+		);
+		expect(renderMathLabelTspans('e^{x^2}')).toContain('font-size="49%"');
+		const zeroWidthMarks = '\u0301\u1ab0\u1dc0\ufe00\ufe20\u200d';
+		expect(mathLabelTextWidth(`e${zeroWidthMarks}`)).toBe(mathLabelTextWidth('e'));
+		expect(mathLabelTextWidth('ᄀ〈⺀가豈︐！😀')).toBeGreaterThan(mathLabelTextWidth('abcdefgh'));
+		expect(mathLabelTextWidth('WWW')).toBeGreaterThan(mathLabelTextWidth('iii'));
 	});
 });

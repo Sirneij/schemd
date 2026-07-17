@@ -12,6 +12,7 @@ export { renderSchematic } from './renderer.js';
 export { schematicMarkedExtension } from './marked-extension.js';
 export {
 	mathLabelGlyphLength,
+	mathLabelTextWidth,
 	mathLabelText,
 	parseMathLabel,
 	renderMathLabelTspans,
@@ -21,6 +22,7 @@ export {
 export {
 	MAX_SCHEMATIC_COMPONENTS,
 	MAX_SCHEMATIC_CONNECTIONS,
+	MAX_SCHEMATIC_WIRE_CROSSINGS,
 	MAX_SCHEMATIC_SOURCE_CHARACTERS,
 	MAX_SCHEMATIC_SVG_OUTPUT_BYTES,
 	SCHEMATIC_LIMITS
@@ -35,6 +37,7 @@ export {
 	positionIcPin,
 	PORT_HOTSPOT_RADIUS,
 	resolvePortPoint,
+	resolvePortGeometry,
 	routeConnections,
 	routeConnection,
 	SCHEMATIC_BRIDGE_RADIUS,
@@ -57,6 +60,8 @@ export {
 	SCHEMATIC_SIGNAL_MARKERS,
 	SEMANTIC_COLORS,
 	TRANSISTOR_TYPES,
+	UML_COMPONENT_KINDS,
+	UML_RELATION_KINDS,
 	SCHEMD_OUTPUT_MODES,
 	SchematicSyntaxError,
 	type AnalogKind,
@@ -89,5 +94,14 @@ export {
 	type TransistorComponent,
 	type TransistorType,
 	type QuantumGateComponent,
-	type QuantumGateKind
+	type QuantumGateKind,
+	type SchematicRelationKind,
+	type UmlActorComponent,
+	type UmlClassComponent,
+	type UmlComponent,
+	type UmlComponentKind,
+	type UmlPseudostateComponent,
+	type UmlRelationKind,
+	type UmlSizedComponent,
+	type UmlStateComponent
 } from './types.js';

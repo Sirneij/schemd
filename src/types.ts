@@ -43,12 +43,28 @@ export const QUANTUM_GATE_KINDS = ['hadamard', 'cnot', 'qgate'] as const;
 /** A supported native or polymorphic quantum gate keyword. */
 export type QuantumGateKind = (typeof QUANTUM_GATE_KINDS)[number];
 
+/** First-class UML node keywords spanning structural and behavioral diagrams. */
+export const UML_COMPONENT_KINDS = [
+	'class',
+	'actor',
+	'usecase',
+	'state',
+	'lifeline',
+	'note',
+	'package',
+	'initial',
+	'final'
+] as const;
+/** A supported UML node keyword. */
+export type UmlComponentKind = (typeof UML_COMPONENT_KINDS)[number];
+
 /** Complete, collision-free component keyword registry. */
 export const COMPONENT_KINDS = [
 	...PASSIVE_KINDS,
 	...ANALOG_KINDS,
 	...CLASSICAL_GATE_KINDS,
 	...QUANTUM_GATE_KINDS,
+	...UML_COMPONENT_KINDS,
 	'ic'
 ] as const;
 /** Any component keyword that can begin a declaration. */
@@ -194,6 +210,56 @@ export interface IcComponent extends ComponentBase {
 /** Descriptive alias for a parsed integrated-circuit block. */
 export type IntegratedCircuitComponent = IcComponent;
 
+/** Parsed UML class with independently sized attribute and operation compartments. */
+export interface UmlClassComponent extends ComponentBase {
+	/** UML class node discriminant. */
+	kind: 'class';
+	/** Optional stereotype displayed above the class name. */
+	stereotype?: string;
+	/** Attribute declarations in source order. */
+	attributes: readonly string[];
+	/** Operation declarations in source order. */
+	operations: readonly string[];
+	/** Deterministic box width derived from all visible rows. */
+	bodyWidth: number;
+	/** Deterministic three-compartment box height. */
+	bodyHeight: number;
+}
+
+/** Parsed UML state with optional behavior rows. */
+export interface UmlStateComponent extends ComponentBase {
+	kind: 'state';
+	/** Entry, do, exit, or author-defined behavior rows. */
+	details: readonly string[];
+	bodyWidth: number;
+	bodyHeight: number;
+}
+
+/** Parsed UML ellipse, note, package, or sequence lifeline. */
+export interface UmlSizedComponent extends ComponentBase {
+	kind: 'usecase' | 'lifeline' | 'note' | 'package';
+	bodyWidth: number;
+	bodyHeight: number;
+}
+
+/** Parsed UML actor figure. */
+export interface UmlActorComponent extends ComponentBase {
+	kind: 'actor';
+}
+
+/** Parsed UML initial or final pseudostate. */
+export interface UmlPseudostateComponent extends ComponentBase {
+	kind: 'initial' | 'final';
+}
+
+/** Every UML component accepted by the compiler. */
+export type UmlComponent =
+	| UmlClassComponent
+	| UmlStateComponent
+	| UmlSizedComponent
+	| UmlActorComponent
+	| UmlPseudostateComponent;
+
 /** Discriminated union of every component node accepted by the renderer. */
 export type SchematicComponent =
 	| PassiveComponent
@@ -203,7 +269,26 @@ export type SchematicComponent =
 	| GroundComponent
 	| ClassicalGateComponent
 	| QuantumGateComponent
-	| IcComponent;
+	| IcComponent
+	| UmlComponent;
+
+/** UML relationship semantics used to derive line style and endpoint markers. */
+export const UML_RELATION_KINDS = [
+	'association',
+	'dependency',
+	'generalization',
+	'realization',
+	'aggregation',
+	'composition',
+	'message',
+	'transition',
+	'include',
+	'extend'
+] as const;
+/** A supported UML relationship. */
+export type UmlRelationKind = (typeof UML_RELATION_KINDS)[number];
+/** Electrical signal or a first-class UML relationship. */
+export type SchematicRelationKind = 'signal' | UmlRelationKind;
 
 /** Address of one component terminal in a connection declaration. */
 export interface SchematicEndpoint {
@@ -227,6 +312,12 @@ export interface SchematicConnection {
 	markerStart: SchematicSignalMarker;
 	/** Optional marker drawn at the destination terminal. */
 	markerEnd: SchematicSignalMarker;
+	/** Electrical or UML relationship semantics. */
+	relation?: SchematicRelationKind;
+	/** Optional text centered beside the routed connector. */
+	label?: string;
+	/** Whether the trace uses the UML dependency dash pattern. */
+	dashed?: boolean;
 	/** One-based source line used for routing diagnostics. */
 	line: number;
 }
@@ -245,7 +336,15 @@ export const SCHEMD_OUTPUT_MODES = ['default', 'embedded-css', 'full'] as const;
 export type SchemdOutputMode = (typeof SCHEMD_OUTPUT_MODES)[number];
 
 /** Marker primitives that can terminate or originate a signal trace. */
-export const SCHEMATIC_SIGNAL_MARKERS = ['none', 'arrow', 'dot'] as const;
+export const SCHEMATIC_SIGNAL_MARKERS = [
+	'none',
+	'arrow',
+	'open-arrow',
+	'dot',
+	'triangle',
+	'diamond',
+	'diamond-filled'
+] as const;
 /** A validated connection marker selection. */
 export type SchematicSignalMarker = (typeof SCHEMATIC_SIGNAL_MARKERS)[number];
 

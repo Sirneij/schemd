@@ -17,6 +17,18 @@ export interface MathLabelSegment {
 	readonly kind: MathLabelSegmentKind;
 	/** Plain Unicode content with grouping delimiters removed. */
 	readonly value: string;
+	/** Absolute font scale for nested scripts; omitted for normal and first-level runs. */
+	readonly fontScale?: number;
+	/** Absolute baseline shift in parent em units for nested scripts. */
+	readonly baselineShiftEm?: number;
+}
+
+/** Parser-owned mutable form used to coalesce runs without repeated object cloning. */
+interface MutableMathLabelSegment {
+	kind: MathLabelSegmentKind;
+	value: string;
+	fontScale?: number;
+	baselineShiftEm?: number;
 }
 
 /** Fixed command-to-Unicode allowlist; unknown commands remain literal text. */
@@ -84,62 +96,28 @@ function escapeXml(value: string): string {
  * @returns Unicode replacement text and the first unread offset.
  */
 function commandAt(value: string, index: number): { readonly text: string; readonly end: number } {
-	const match = value.slice(index + 1).match(/^[A-Za-z]+/);
-	if (!match) return { text: value[index]!, end: index + 1 };
-	const command = match[0];
+	const escaped = value[index + 1];
+	if (
+		escaped === '\\' ||
+		escaped === '{' ||
+		escaped === '}' ||
+		escaped === '_' ||
+		escaped === '^'
+	) {
+		return { text: escaped, end: index + 2 };
+	}
+	let end = index + 1;
+	while (end < value.length) {
+		const code = value.charCodeAt(end);
+		if (!((code >= 65 && code <= 90) || (code >= 97 && code <= 122))) break;
+		end += 1;
+	}
+	if (end === index + 1) return { text: '\\', end: index + 1 };
+	const command = value.slice(index + 1, end);
 	const replacement = MATH_SYMBOLS[command];
 	return {
 		text: replacement ?? `\\${command}`,
-		end: index + command.length + 1
-	};
-}
-
-/**
- * Translate supported commands in a plain or shifted substring in one pass.
- *
- * @param value - Raw substring containing zero or more backslash commands.
- * @returns Unicode text; unknown alphabetic commands remain literal.
- */
-function translateMathSymbols(value: string): string {
-	let output = '';
-	let index = 0;
-	while (index < value.length) {
-		if (value[index] !== '\\') {
-			output += value[index];
-			index += 1;
-			continue;
-		}
-		const command = commandAt(value, index);
-		output += command.text;
-		index = command.end;
-	}
-	return output;
-}
-
-/**
- * Read a compact (`_x`) or grouped (`_{input}`) baseline shift.
- *
- * Unclosed groups are rejected without consuming text so the main parser can
- * preserve the original underscore/caret literally.
- *
- * @param value - Complete raw label.
- * @param index - Offset of the `_` or `^` shift marker.
- * @returns Shift content and first unread offset, or `undefined` for an unclosed group.
- */
-function shiftedValue(
-	value: string,
-	index: number
-): { readonly value: string; readonly end: number } | undefined {
-	const first = value[index + 1];
-	if (first !== '{') {
-		const character = Array.from(value.slice(index + 1))[0]!;
-		return { value: translateMathSymbols(character), end: index + 1 + character.length };
-	}
-	const closing = value.indexOf('}', index + 2);
-	if (closing < 0) return undefined;
-	return {
-		value: translateMathSymbols(value.slice(index + 2, closing)),
-		end: closing + 1
+		end
 	};
 }
 
@@ -151,17 +129,30 @@ function shiftedValue(
  * @param value - Unicode-translated content; empty strings are ignored.
  */
 function appendSegment(
-	segments: MathLabelSegment[],
+	segments: MutableMathLabelSegment[],
 	kind: MathLabelSegmentKind,
-	value: string
+	value: string,
+	fontScale: number,
+	baselineShiftEm: number
 ): void {
-	if (value === '') return;
 	const previous = segments.at(-1);
-	if (previous?.kind === kind) {
-		segments[segments.length - 1] = { kind, value: previous.value + value };
+	const previousScale = previous?.fontScale ?? (previous?.kind === 'text' ? 1 : 0.7);
+	const previousShift =
+		previous?.baselineShiftEm ??
+		(previous?.kind === 'subscript' ? 0.35 : previous?.kind === 'superscript' ? -0.55 : 0);
+	if (
+		previous?.kind === kind &&
+		previousScale === fontScale &&
+		previousShift === baselineShiftEm
+	) {
+		previous.value += value;
 		return;
 	}
-	segments.push({ kind, value });
+	const nested = fontScale !== (kind === 'text' ? 1 : 0.7) ||
+		baselineShiftEm !== (kind === 'subscript' ? 0.35 : kind === 'superscript' ? -0.55 : 0);
+	segments.push(
+		nested ? { kind, value, fontScale, baselineShiftEm } : { kind, value }
+	);
 }
 
 /**
@@ -171,37 +162,103 @@ function appendSegment(
  * @returns Coalesced immutable baseline segments with symbol commands expanded.
  */
 export function parseMathLabel(value: string): readonly MathLabelSegment[] {
-	const segments: MathLabelSegment[] = [];
-	let text = '';
+	const segments: MutableMathLabelSegment[] = [];
+	const braceStack: number[] = [];
+	const matchingBraces = new Map<number, number>();
+	const matchedClosings = new Set<number>();
+	for (let cursor = 0; cursor < value.length; cursor += 1) {
+		if (value[cursor] === '\\') {
+			cursor += 1;
+			continue;
+		}
+		if (value[cursor] === '{') braceStack.push(cursor);
+		else if (value[cursor] === '}') {
+			const opening = braceStack.pop();
+			if (opening !== undefined) {
+				matchingBraces.set(opening, cursor);
+				matchedClosings.add(cursor);
+			}
+		}
+	}
+	interface Context {
+		readonly end: number;
+		readonly kind: MathLabelSegmentKind;
+		readonly fontScale: number;
+		readonly baselineShiftEm: number;
+	}
+	const contexts: Context[] = [
+		{ end: value.length, kind: 'text', fontScale: 1, baselineShiftEm: 0 }
+	];
 	let index = 0;
-	/** Commit the current normal-baseline buffer before a shifted segment. */
-	const flush = () => {
-		appendSegment(segments, 'text', text);
-		text = '';
-	};
-
 	while (index < value.length) {
+		const context = contexts[contexts.length - 1]!;
+		if (index === context.end) {
+			contexts.pop();
+			index += 1;
+			continue;
+		}
 		const character = value[index]!;
+		if (matchingBraces.has(index) || matchedClosings.has(index)) {
+			index += 1;
+			continue;
+		}
 		if ((character === '_' || character === '^') && index + 1 < value.length) {
-			const shifted = shiftedValue(value, index);
-			if (shifted !== undefined && shifted.value !== '') {
-				flush();
-				appendSegment(segments, character === '_' ? 'subscript' : 'superscript', shifted.value);
-				index = shifted.end;
+			const kind = character === '_' ? 'subscript' : 'superscript';
+			const fontScale = context.fontScale * 0.7;
+			const baselineShiftEm =
+				context.baselineShiftEm +
+				(character === '_' ? 0.35 * context.fontScale : -0.55 * context.fontScale);
+			if (value[index + 1] === '{') {
+				const closing = matchingBraces.get(index + 1);
+				if (closing !== undefined) {
+					contexts.push({ end: closing, kind, fontScale, baselineShiftEm });
+					index += 2;
+					continue;
+				}
+				appendSegment(
+					segments,
+					context.kind,
+					character,
+					context.fontScale,
+					context.baselineShiftEm
+				);
+				index += 1;
 				continue;
 			}
+			let token: { readonly text: string; readonly end: number };
+			if (value[index + 1] === '\\') token = commandAt(value, index + 1);
+			else {
+				const codePoint = value.codePointAt(index + 1)!;
+				const text = String.fromCodePoint(codePoint);
+				token = { text, end: index + 1 + text.length };
+			}
+			appendSegment(segments, kind, token.text, fontScale, baselineShiftEm);
+			index = token.end;
+			continue;
 		}
 		if (character === '\\') {
 			const command = commandAt(value, index);
-			text += command.text;
+			appendSegment(
+				segments,
+				context.kind,
+				command.text,
+				context.fontScale,
+				context.baselineShiftEm
+			);
 			index = command.end;
 			continue;
 		}
-		// TeX grouping braces have no visual payload in this intentionally small subset.
-		if (character !== '{' && character !== '}') text += character;
-		index += 1;
+		const codePoint = value.codePointAt(index)!;
+		const text = String.fromCodePoint(codePoint);
+		appendSegment(
+			segments,
+			context.kind,
+			text,
+			context.fontScale,
+			context.baselineShiftEm
+		);
+		index += text.length;
 	}
-	flush();
 	return segments;
 }
 
@@ -224,15 +281,66 @@ export function mathLabelText(value: string): string {
  * @returns Unicode code-point count after command translation.
  */
 export function mathLabelGlyphLength(value: string): number {
-	return Array.from(mathLabelText(value)).length;
+	let length = 0;
+	for (const _character of mathLabelText(value)) length += 1;
+	return length;
+}
+
+/**
+ * Estimate deterministic text advance without browser font measurement.
+ *
+ * Combining marks consume no additional width, East Asian and emoji code
+ * points consume two cells, and nested scripts retain their parsed font scale.
+ * The result deliberately overestimates ambiguous mathematical glyphs slightly
+ * so labels are fitted before they can collide with neighboring geometry.
+ *
+ * @param value - Raw micro-math label.
+ * @param cellAdvance - Width of one ordinary glyph in viewBox units.
+ * @returns Estimated rendered width in viewBox units.
+ */
+export function mathLabelTextWidth(value: string, cellAdvance = 7): number {
+	let cells = 0;
+	for (const segment of parseMathLabel(value)) {
+		const scale = segment.fontScale ?? (segment.kind === 'text' ? 1 : 0.7);
+		for (const character of segment.value) {
+			const codePoint = character.codePointAt(0)!;
+			if (
+				(codePoint >= 0x0300 && codePoint <= 0x036f) ||
+				(codePoint >= 0x1ab0 && codePoint <= 0x1aff) ||
+				(codePoint >= 0x1dc0 && codePoint <= 0x1dff) ||
+				(codePoint >= 0xfe00 && codePoint <= 0xfe0f) ||
+				(codePoint >= 0xfe20 && codePoint <= 0xfe2f) ||
+				codePoint === 0x200d
+			) {
+				continue;
+			}
+			const doubleWidth =
+				codePoint >= 0x1100 &&
+				(codePoint <= 0x115f ||
+					(codePoint >= 0x2329 && codePoint <= 0x232a) ||
+					(codePoint >= 0x2e80 && codePoint <= 0xa4cf) ||
+					(codePoint >= 0xac00 && codePoint <= 0xd7a3) ||
+					(codePoint >= 0xf900 && codePoint <= 0xfaff) ||
+					(codePoint >= 0xfe10 && codePoint <= 0xfe6f) ||
+					(codePoint >= 0xff00 && codePoint <= 0xff60) ||
+					(codePoint >= 0x1f300 && codePoint <= 0x1faff));
+			let widthFactor = 1;
+			if (doubleWidth) widthFactor = 2;
+			else if ('MWmw@%&'.includes(character)) widthFactor = 1.55;
+			else if ('ilI.,:;!|\'` '.includes(character)) widthFactor = 0.55;
+			else if (codePoint === 0x03a9 || codePoint === 0x221e) widthFactor = 1.35;
+			cells += widthFactor * scale;
+		}
+	}
+	return cells * cellAdvance;
 }
 
 /**
  * Emit escaped inline SVG text with explicit baseline restoration.
  *
- * Plain labels avoid `<tspan>` allocation entirely. Shifted segments use a
- * 70% font size and an empty inverse-`dy` tspan so consecutive shifts cannot
- * accumulate vertical drift.
+ * Plain labels avoid `<tspan>` allocation entirely. Shifted segments carry
+ * absolute scale and baseline metrics; each emitted `dy` is the delta from the
+ * preceding run, so nested and consecutive scripts cannot accumulate drift.
  *
  * @param value - Raw micro-math label.
  * @returns Trusted compiler-owned XML text suitable inside an SVG `<text>` node.
@@ -241,6 +349,25 @@ export function renderMathLabelTspans(value: string): string {
 	const segments = parseMathLabel(value);
 	if (segments.length === 1 && segments[0]?.kind === 'text' && segments[0].value === value) {
 		return escapeXml(value);
+	}
+	const nested = segments.some((segment) => segment.fontScale !== undefined);
+	if (nested) {
+		let previousShift = 0;
+		let markup = '';
+		for (const segment of segments) {
+			const shift =
+				segment.baselineShiftEm ??
+				(segment.kind === 'subscript' ? 0.35 : segment.kind === 'superscript' ? -0.55 : 0);
+			const scale = segment.fontScale ?? (segment.kind === 'text' ? 1 : 0.7);
+			const delta = Number((shift - previousShift).toFixed(4));
+			const fontPercent = Number((scale * 100).toFixed(2));
+			markup += `<tspan dy="${delta}em" font-size="${fontPercent}%">${escapeXml(segment.value)}</tspan>`;
+			previousShift = shift;
+		}
+		if (previousShift !== 0) {
+			markup += `<tspan dy="${Number((-previousShift).toFixed(4))}em" font-size="100%"></tspan>`;
+		}
+		return markup;
 	}
 	return segments
 		.map((segment) => {

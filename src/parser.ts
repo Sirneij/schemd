@@ -18,6 +18,8 @@ import {
 	SEMANTIC_COLORS,
 	SCHEMATIC_SIGNAL_MARKERS,
 	TRANSISTOR_TYPES,
+	UML_COMPONENT_KINDS,
+	UML_RELATION_KINDS,
 	SchematicSyntaxError,
 	type ClassicalGateComponent,
 	type ComponentKind,
@@ -35,9 +37,14 @@ import {
 	type SchematicEndpoint,
 	type SchematicFence,
 	type SchematicSignalMarker,
-	type TransistorComponent
+	type SchematicRelationKind,
+	type TransistorComponent,
+	type UmlClassComponent,
+	type UmlSizedComponent,
+	type UmlStateComponent
 } from './types.js';
 import { validateDocumentGeometry } from './layout.js';
+import { mathLabelTextWidth } from './math-label.js';
 import {
 	MAX_SCHEMATIC_COMPONENTS,
 	MAX_SCHEMATIC_CONNECTIONS,
@@ -78,6 +85,12 @@ const IC_HORIZONTAL_PIN_SPACING = 22;
 const IC_VERTICAL_PIN_SPACING = 18;
 /** Aggregate padding retained around dynamically distributed IC pins. */
 const IC_BODY_PADDING = 24;
+/** Maximum rows accepted in a UML class or state compartment. */
+const MAX_UML_ROWS = 64;
+/** Maximum length of one UML compartment row. */
+const MAX_UML_ROW_LENGTH = 256;
+/** Ordinary row height used by deterministic UML sizing. */
+const UML_ROW_HEIGHT = 16;
 /** Maximum accessible title length accepted from a fence information string. */
 const MAX_FENCE_TITLE_LENGTH = 512;
 /** Provenance registry for immutable AST objects created by this parser instance. */
@@ -100,6 +113,11 @@ function freezeParsedDocument(document: SchematicDocument): SchematicDocument {
 			Object.freeze(component.pins.bottom);
 			Object.freeze(component.pins);
 		}
+		if (component.kind === 'class') {
+			Object.freeze(component.attributes);
+			Object.freeze(component.operations);
+		}
+		if (component.kind === 'state') Object.freeze(component.details);
 		Object.freeze(component);
 	}
 	for (const connection of document.connections) {
@@ -294,26 +312,48 @@ function parseAttributes(raw: string | undefined, line: number): ReadonlyMap<str
 	let cursor = 0;
 	while (cursor < source.length) {
 		if (cursor > 0) {
-			const separator = source.slice(cursor).match(/^\s+/);
-			if (!separator) throw new SchematicSyntaxError('Malformed component options.', line);
-			cursor += separator[0].length;
+			if (!/\s/.test(source[cursor]!)) {
+				throw new SchematicSyntaxError('Malformed component options.', line);
+			}
+			while (cursor < source.length && /\s/.test(source[cursor]!)) cursor += 1;
+			/* v8 ignore next -- source.trim() makes a trailing separator unreachable. */
+			if (cursor === source.length) {
+				throw new SchematicSyntaxError('Malformed component options.', line);
+			}
 		}
-		const keyMatch = source.slice(cursor).match(/^([a-z][a-z0-9-]*)=/);
-		if (!keyMatch) {
+		const keyStart = cursor;
+		const firstCode = source.charCodeAt(cursor);
+		if (firstCode < 97 || firstCode > 122) {
 			throw new SchematicSyntaxError('Malformed component options.', line);
 		}
-		const key = keyMatch[1]!;
-		cursor += keyMatch[0].length;
+		cursor += 1;
+		while (cursor < source.length) {
+			const code = source.charCodeAt(cursor);
+			if (!((code >= 97 && code <= 122) || (code >= 48 && code <= 57) || code === 45)) break;
+			cursor += 1;
+		}
+		if (source[cursor] !== '=') {
+			throw new SchematicSyntaxError('Malformed component options.', line);
+		}
+		const key = source.slice(keyStart, cursor);
+		cursor += 1;
 		let value: string;
 		if (source[cursor] === '"') {
-			const closingQuote = source.indexOf('"', cursor + 1);
-			value = source.slice(cursor + 1, closingQuote);
-			cursor = closingQuote + 1;
+			const valueStart = ++cursor;
+			while (cursor < source.length && source[cursor] !== '"') cursor += 1;
+			/* v8 ignore next -- splitDeclarationTail rejects unbalanced quotes first. */
+			if (cursor === source.length) {
+				throw new SchematicSyntaxError('Malformed component options.', line);
+			}
+			value = source.slice(valueStart, cursor);
+			cursor += 1;
 		} else {
-			const valueMatch = source.slice(cursor).match(/^[^\s]+/);
-			if (!valueMatch) throw new SchematicSyntaxError('Malformed component options.', line);
-			value = valueMatch[0];
-			cursor += value.length;
+			const valueStart = cursor;
+			while (cursor < source.length && !/\s/.test(source[cursor]!)) cursor += 1;
+			if (cursor === valueStart) {
+				throw new SchematicSyntaxError('Malformed component options.', line);
+			}
+			value = source.slice(valueStart, cursor);
 		}
 		if (attributes.has(key)) throw new SchematicSyntaxError(`Duplicate option ${key}.`, line);
 		attributes.set(key, value);
@@ -537,6 +577,49 @@ function integratedCircuitDimensions(pins: IntegratedCircuitPins): {
 	};
 }
 
+/** Parse a semicolon-delimited UML compartment without unbounded row growth. */
+function parseUmlRows(value: string | undefined, name: string, line: number): readonly string[] {
+	if (value === undefined || value.trim() === '') return [];
+	const rows = value.split(';').map((row) => row.trim());
+	if (rows.length > MAX_UML_ROWS) {
+		throw new SchematicSyntaxError(`${name} supports at most ${MAX_UML_ROWS} rows.`, line);
+	}
+	for (const row of rows) {
+		if (row === '' || row.length > MAX_UML_ROW_LENGTH) {
+			throw new SchematicSyntaxError(
+				`${name} rows must contain 1 through ${MAX_UML_ROW_LENGTH} characters.`,
+				line
+			);
+		}
+	}
+	return rows;
+}
+
+/** Parse an optional UML dimension while retaining finite render bounds. */
+function parseUmlDimension(
+	value: string | undefined,
+	fallback: number,
+	name: string,
+	line: number
+): number {
+	if (value === undefined) return fallback;
+	if (!/^\d+(?:\.\d+)?$/.test(value)) {
+		throw new SchematicSyntaxError(`${name} must be a finite number from 24 through 2048.`, line);
+	}
+	const dimension = Number(value);
+	if (dimension < 24 || dimension > 2048) {
+		throw new SchematicSyntaxError(`${name} must be a finite number from 24 through 2048.`, line);
+	}
+	return dimension;
+}
+
+/** Estimate the widest row in a UML node using the micro-math metric fallback. */
+function widestUmlRow(rows: readonly string[]): number {
+	let width = 0;
+	for (const row of rows) width = Math.max(width, mathLabelTextWidth(row, 8));
+	return width;
+}
+
 /**
  * Extract and sanitize fields shared by every component AST node.
  *
@@ -640,6 +723,85 @@ function parseComponent(match: RegExpMatchArray, line: number): SchematicCompone
 			...integratedCircuitDimensions(pins)
 		} satisfies IcComponent;
 	}
+	if (includesValue(UML_COMPONENT_KINDS, kind)) {
+		switch (kind) {
+			case 'class': {
+				assertOnlyAttributes(attributes, ['attributes', 'operations', 'stereotype', 'width'], line);
+				const classAttributes = parseUmlRows(attributes.get('attributes'), 'attributes', line);
+				const operations = parseUmlRows(attributes.get('operations'), 'operations', line);
+				const stereotype = attributes.get('stereotype');
+				if (stereotype !== undefined && (stereotype === '' || stereotype.length > 128)) {
+					throw new SchematicSyntaxError('stereotype must contain 1 through 128 characters.', line);
+				}
+				const calculatedWidth = Math.max(
+					120,
+					widestUmlRow([common.label, stereotype ?? '', ...classAttributes, ...operations]) + 24
+				);
+				const bodyWidth = Math.max(
+					calculatedWidth,
+					parseUmlDimension(attributes.get('width'), calculatedWidth, 'width', line)
+				);
+				const bodyHeight =
+					36 +
+					Math.max(24, classAttributes.length * UML_ROW_HEIGHT + 8) +
+					Math.max(24, operations.length * UML_ROW_HEIGHT + 8) +
+					(stereotype === undefined ? 0 : 14);
+				const component: UmlClassComponent = {
+					kind,
+					...common,
+					attributes: classAttributes,
+					operations,
+					bodyWidth,
+					bodyHeight
+				};
+				if (stereotype !== undefined) component.stereotype = stereotype;
+				return component;
+			}
+			case 'state': {
+				assertOnlyAttributes(attributes, ['details', 'width'], line);
+				const details = parseUmlRows(attributes.get('details'), 'details', line);
+				const calculatedWidth = Math.max(112, widestUmlRow([common.label, ...details]) + 28);
+				return {
+					kind,
+					...common,
+					details,
+					bodyWidth: Math.max(
+						calculatedWidth,
+						parseUmlDimension(attributes.get('width'), calculatedWidth, 'width', line)
+					),
+					bodyHeight: 40 + details.length * UML_ROW_HEIGHT
+				} satisfies UmlStateComponent;
+			}
+			case 'usecase':
+			case 'lifeline':
+			case 'note':
+			case 'package': {
+				assertOnlyAttributes(attributes, ['width', 'height'], line);
+				const defaultWidth = Math.max(
+					kind === 'usecase' ? 112 : 96,
+					mathLabelTextWidth(common.label, 8) + 28
+				);
+				const defaultHeight = kind === 'lifeline' ? 180 : kind === 'usecase' ? 56 : 64;
+				return {
+					kind,
+					...common,
+					bodyWidth: Math.max(
+						defaultWidth,
+						parseUmlDimension(attributes.get('width'), defaultWidth, 'width', line)
+					),
+					bodyHeight: Math.max(
+						defaultHeight,
+						parseUmlDimension(attributes.get('height'), defaultHeight, 'height', line)
+					)
+				} satisfies UmlSizedComponent;
+			}
+			case 'actor':
+			case 'initial':
+			case 'final':
+				assertOnlyAttributes(attributes, [], line);
+				return { kind, ...common };
+		}
+	}
 	const quantumKind = kind as QuantumGateKind;
 	assertOnlyAttributes(
 		attributes,
@@ -675,6 +837,32 @@ interface ParsedConnectionOptions {
 	markerStart: SchematicSignalMarker;
 	/** Optional marker attached to the destination endpoint. */
 	markerEnd: SchematicSignalMarker;
+	/** Electrical or UML relationship semantics. */
+	relation: SchematicRelationKind;
+	/** Optional connector label. */
+	label: string | undefined;
+	/** Explicit or relation-derived dash treatment. */
+	dashed: boolean;
+}
+
+/** Split connection options without breaking quoted labels containing whitespace. */
+function connectionOptionTokens(raw: string, line: number): readonly string[] {
+	const tokens: string[] = [];
+	let tokenStart = -1;
+	let quoteOpen = false;
+	for (let index = 0; index <= raw.length; index += 1) {
+		const character = raw[index];
+		if (character === '"') quoteOpen = !quoteOpen;
+		if ((character === undefined || (/\s/.test(character) && !quoteOpen)) && tokenStart >= 0) {
+			tokens.push(raw.slice(tokenStart, index));
+			tokenStart = -1;
+		} else if (character !== undefined && !/\s/.test(character) && tokenStart < 0) {
+			tokenStart = index;
+		}
+	}
+	/* v8 ignore next -- splitDeclarationTail rejects unbalanced quotes before tokenization. */
+	if (quoteOpen) throw new SchematicSyntaxError('Malformed quoted connection option.', line);
+	return tokens;
 }
 
 /**
@@ -706,16 +894,37 @@ function parseConnectionOptions(raw: string | undefined, line: number): ParsedCo
 	let curve: SchematicConnection['curve'] = 'line';
 	let markerStart: SchematicSignalMarker = 'none';
 	let markerEnd: SchematicSignalMarker = 'none';
-	if (raw === undefined || raw.trim() === '') return { curve, markerStart, markerEnd };
+	let relation: SchematicRelationKind = 'signal';
+	let label: string | undefined;
+	let dashed = false;
+	if (raw === undefined || raw.trim() === '') {
+		return { curve, markerStart, markerEnd, relation, label, dashed };
+	}
 
 	const seen = new Set<string>();
-	for (const token of raw.trim().split(/\s+/)) {
+	for (const token of connectionOptionTokens(raw.trim(), line)) {
 		if (token === 'line' || token === 'bezier' || token === 'ortho') {
 			if (seen.has('curve')) {
 				throw new SchematicSyntaxError('Connection routing can only be declared once.', line);
 			}
 			curve = token;
 			seen.add('curve');
+			continue;
+		}
+		if (token === 'dashed' || token === 'solid') {
+			if (seen.has('stroke-style')) {
+				throw new SchematicSyntaxError('Connection stroke style can only be declared once.', line);
+			}
+			dashed = token === 'dashed';
+			seen.add('stroke-style');
+			continue;
+		}
+		if (includesValue(UML_RELATION_KINDS, token)) {
+			if (seen.has('relation')) {
+				throw new SchematicSyntaxError('Connection relation can only be declared once.', line);
+			}
+			relation = token;
+			seen.add('relation');
 			continue;
 		}
 		if (token === 'arrow' || token === 'dot') {
@@ -726,10 +935,10 @@ function parseConnectionOptions(raw: string | undefined, line: number): ParsedCo
 			seen.add('marker-end');
 			continue;
 		}
-		const match = token.match(/^(marker-start|marker-end)=(\S+)$/);
+		const match = token.match(/^(marker-start|marker-end|relation|label)=(.*)$/);
 		if (!match) {
 			throw new SchematicSyntaxError(
-				'Connection routing options support line, bezier, ortho, arrow, dot, marker-start, and marker-end.',
+				'Unsupported connection routing, marker, relation, label, or stroke option.',
 				line
 			);
 		}
@@ -737,12 +946,56 @@ function parseConnectionOptions(raw: string | undefined, line: number): ParsedCo
 		if (seen.has(option)) {
 			throw new SchematicSyntaxError(`Connection ${option} can only be declared once.`, line);
 		}
-		const marker = parseSignalMarker(match[2]!, option, line);
-		if (option === 'marker-start') markerStart = marker;
-		else markerEnd = marker;
+		let optionValue = match[2]!;
+		if (optionValue.startsWith('"') || optionValue.endsWith('"')) {
+			if (!(optionValue.length >= 2 && optionValue.startsWith('"') && optionValue.endsWith('"'))) {
+				throw new SchematicSyntaxError(`Malformed connection ${option}.`, line);
+			}
+			optionValue = optionValue.slice(1, -1);
+		}
+		if (option === 'relation') {
+			if (!includesValue(UML_RELATION_KINDS, optionValue)) {
+				throw new SchematicSyntaxError(
+					`relation must be one of: ${UML_RELATION_KINDS.join(', ')}.`,
+					line
+				);
+			}
+			relation = optionValue;
+		} else if (option === 'label') {
+			if (optionValue === '' || optionValue.length > 256) {
+				throw new SchematicSyntaxError('Connection labels require 1 through 256 characters.', line);
+			}
+			label = optionValue;
+		} else {
+			const marker = parseSignalMarker(optionValue, option, line);
+			if (option === 'marker-start') markerStart = marker;
+			else markerEnd = marker;
+		}
 		seen.add(option);
 	}
-	return { curve, markerStart, markerEnd };
+	if (!seen.has('marker-start')) {
+		if (relation === 'aggregation') markerStart = 'diamond';
+		else if (relation === 'composition') markerStart = 'diamond-filled';
+	}
+	if (!seen.has('marker-end')) {
+		if (relation === 'generalization' || relation === 'realization') markerEnd = 'triangle';
+		else if (
+			relation === 'dependency' ||
+			relation === 'message' ||
+			relation === 'transition' ||
+			relation === 'include' ||
+			relation === 'extend'
+		) {
+			markerEnd = 'open-arrow';
+		}
+	}
+	if (!seen.has('stroke-style')) {
+		dashed = ['dependency', 'realization', 'include', 'extend'].includes(relation);
+	}
+	if (label === undefined && (relation === 'include' || relation === 'extend')) {
+		label = `«${relation}»`;
+	}
+	return { curve, markerStart, markerEnd, relation, label, dashed };
 }
 
 /**
@@ -755,15 +1008,19 @@ function parseConnectionOptions(raw: string | undefined, line: number): ParsedCo
 function parseConnection(match: RegExpMatchArray, line: number): SchematicConnection {
 	const tail = splitDeclarationTail(match[5]!, line);
 	const options = parseConnectionOptions(tail.options, line);
-	return {
+	const connection: SchematicConnection = {
 		from: parseEndpoint(match[1]!, match[2]!),
 		to: parseEndpoint(match[3]!, match[4]!),
 		color: parseSchematicColor(tail.color, line),
 		curve: options.curve,
 		markerStart: options.markerStart,
 		markerEnd: options.markerEnd,
+		relation: options.relation,
+		dashed: options.dashed,
 		line
 	};
+	if (options.label !== undefined) connection.label = options.label;
+	return connection;
 }
 
 /**
@@ -861,6 +1118,12 @@ function validateEndpoint(
 	let valid: boolean;
 	if (isClassicalGate(component)) {
 		valid = validGatePort(component, endpoint.port);
+	} else if (includesValue(UML_COMPONENT_KINDS, component.kind)) {
+		valid = ['in', 'out', 'left', 'right', 'top', 'bottom'].includes(endpoint.port);
+		if (!valid && component.kind === 'lifeline') {
+			const match = endpoint.port.match(/^(left|right)(\d+)$/);
+			valid = match !== null && Number(match[2]) <= component.bodyHeight;
+		}
 	} else {
 		switch (component.kind) {
 			case 'resistor':

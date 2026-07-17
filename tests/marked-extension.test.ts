@@ -4,6 +4,7 @@ import { describe, expect, test, vi } from 'vitest';
 import {
 	MAX_SCHEMATIC_COMPONENTS,
 	MAX_SCHEMATIC_CONNECTIONS,
+	MAX_SCHEMATIC_WIRE_CROSSINGS,
 	MAX_SCHEMATIC_SOURCE_CHARACTERS,
 	MAX_SCHEMATIC_SVG_OUTPUT_BYTES,
 	parseSchematic,
@@ -136,12 +137,14 @@ describe('schematicMarkedExtension', () => {
 			sourceCharacters: 131_072,
 			components: 512,
 			connections: 2_048,
+			wireCrossings: 32_768,
 			svgOutputBytes: 2_097_152
 		});
 		expect(Object.isFrozen(SCHEMATIC_LIMITS)).toBe(true);
 		expect(MAX_SCHEMATIC_SOURCE_CHARACTERS).toBe(SCHEMATIC_LIMITS.sourceCharacters);
 		expect(MAX_SCHEMATIC_COMPONENTS).toBe(SCHEMATIC_LIMITS.components);
 		expect(MAX_SCHEMATIC_CONNECTIONS).toBe(SCHEMATIC_LIMITS.connections);
+		expect(MAX_SCHEMATIC_WIRE_CROSSINGS).toBe(SCHEMATIC_LIMITS.wireCrossings);
 		expect(MAX_SCHEMATIC_SVG_OUTPUT_BYTES).toBe(SCHEMATIC_LIMITS.svgOutputBytes);
 	});
 
@@ -302,7 +305,7 @@ describe('schematicMarkedExtension', () => {
 		const html = marked.parse(vectorMatrixSource) as string;
 
 		expect(html).toContain('Complete vector matrix');
-		expect(html).toContain('25 components and 0 signal connections.');
+		expect(html).toContain('25 components and 0 connections.');
 		for (const metadata of [
 			'standard',
 			'schottky',

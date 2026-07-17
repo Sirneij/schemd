@@ -5,6 +5,7 @@ import {
 	componentObstacleRectangle,
 	componentTextAnchors,
 	enumerateComponentPorts,
+	MAX_SCHEMATIC_WIRE_CROSSINGS,
 	parseSchematic,
 	positionIcPin,
 	resolvePortPoint,
@@ -193,6 +194,19 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 				`Validated port ${id}.invalid is missing.`
 			);
 		}
+		const inputOnlyChip: SchematicComponent = {
+			kind: 'ic',
+			id: 'INPUT_ONLY',
+			label: 'Input only',
+			x: 300,
+			y: 300,
+			color: token,
+			line: 1,
+			pins: { left: ['A'], right: [], top: [], bottom: [] },
+			bodyWidth: 88,
+			bodyHeight: 64
+		};
+		expect(() => resolvePortPoint(inputOnlyChip, 'out')).toThrow(/INPUT_ONLY\.out is missing/);
 	});
 
 	test('routes line, bezier, and orthogonal traces with stable numeric formatting', () => {
@@ -223,7 +237,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 			'M 0 100 C 121 100, 121 150, 242 150'
 		);
 		expect(routeConnection({ ...base, curve: 'ortho' }, components).d).toBe(
-			'M 0 100 H 121 V 150 H 242'
+			'M 0 100 H -12 V 118 H 254 V 150 H 242'
 		);
 		expect(() =>
 			routeConnection(
@@ -271,7 +285,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 		expect(SCHEMATIC_OBSTACLE_CLEARANCE).toBe(12);
 		expect(obstacleBounds).toEqual({ minX: 196, minY: 90, maxX: 304, maxY: 150 });
 		expect(routeConnection(connection, components)).toMatchObject({
-			d: 'M 92 120 V 90 H 408 V 120'
+			d: 'M 92 120 H 104 V 90 H 396 V 120 H 408'
 		});
 		expect(() => componentObstacleRectangle(obstacle, -1)).toThrow(/finite non-negative/);
 		expect(() => componentObstacleRectangle(obstacle, Number.NaN)).toThrow(/finite non-negative/);
@@ -321,7 +335,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 		expect(routed[0]!.d).toBe('M 92 120 H 408');
 		expect(routed[1]!.d).toContain('A 5 5');
 		expect(routed[1]!.d).toBe('M 250 56 V 115 A 5 5 0 0 0 250 125 V 184');
-		expect(routed[1]!.points).toContainEqual({ x: 255, y: 120 });
+		expect(routed[1]!.points).toContainEqual({ x: 245, y: 120 });
 
 		const reversedVertical = routeConnections(
 			[
@@ -406,6 +420,216 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 			components
 		);
 		expect(reversed[1]!.d).toBe('M 408 120 H 185 A 5 5 0 0 0 175 120 H 92');
+	});
+
+	test('shrinks adjacent bridges instead of overlapping or reversing the path', () => {
+		const terminal = (id: string, x: number, y: number): PortComponent => ({
+			kind: 'port', id, label: id, x, y, color: token, line: 1
+		});
+		const left = terminal('L', -50, 120);
+		const right = terminal('R', 750, 120);
+		const topA = terminal('TA', 50, 20);
+		const bottomA = terminal('BA', 550, 220);
+		const topB = terminal('TB', 170, 80);
+		const bottomB = terminal('BB', 438, 280);
+		const components = new Map(
+			[left, right, topA, bottomA, topB, bottomB].map((component) => [component.id, component])
+		);
+		const connection = (from: string, fromPort: string, to: string, toPort: string): SchematicConnection => ({
+			from: { componentId: from, port: fromPort },
+			to: { componentId: to, port: toPort },
+			color: token,
+			curve: 'ortho',
+			markerStart: 'none',
+			markerEnd: 'none',
+			line: 2
+		});
+		const routes = routeConnections(
+			[
+				connection('TA', 'out', 'BA', 'in'),
+				connection('TB', 'out', 'BB', 'in'),
+				connection('L', 'out', 'R', 'in')
+			],
+			components
+		);
+		expect(routes[2]!.d).toContain('A 2 2');
+		expect(routes[2]!.d).not.toContain('A 5 5');
+		expect(routes[2]!.d).toBe(
+			'M -8 120 H 298 A 2 2 0 0 1 302 120 A 2 2 0 0 1 306 120 H 708'
+		);
+	});
+
+	test('never applies crossing arcs to line or bezier routes', () => {
+		const left: PortComponent = { kind: 'port', id: 'L', label: 'L', x: 50, y: 120, color: token, line: 1 };
+		const right: PortComponent = { ...left, id: 'R', x: 450 };
+		const top: PortComponent = { ...left, id: 'T', x: 250, y: 20 };
+		const bottom: PortComponent = { ...left, id: 'B', x: 250, y: 220 };
+		const components = new Map([left, right, top, bottom].map((component) => [component.id, component]));
+		const base: SchematicConnection = {
+			from: { componentId: 'L', port: 'out' },
+			to: { componentId: 'R', port: 'in' },
+			color: token,
+			curve: 'ortho',
+			markerStart: 'none',
+			markerEnd: 'none',
+			line: 2
+		};
+		const routed = routeConnections([
+			base,
+			{ ...base, from: { componentId: 'T', port: 'out' }, to: { componentId: 'B', port: 'out' }, curve: 'bezier' }
+		], components);
+		expect(routed[1]!.curve).toBe('bezier');
+		expect(routed[1]!.d).toContain(' C ');
+		expect(routed[1]!.d).not.toContain(' A ');
+	});
+
+	test('fails deterministically when a bounded obstacle wall has no route', () => {
+		const left: PortComponent = { kind: 'port', id: 'L', label: 'L', x: 50, y: 100, color: token, line: 1 };
+		const right: PortComponent = { ...left, id: 'R', x: 450 };
+		const wall: SchematicComponent = {
+			kind: 'lifeline', id: 'W', label: 'wall', x: 250, y: 100, color: token, line: 1,
+			bodyWidth: 96, bodyHeight: 200
+		};
+		const offCanvas: SchematicComponent = {
+			kind: 'initial', id: 'OFF', label: 'off', x: -20, y: -100, color: token, line: 1
+		};
+		const components = new Map(
+			[left, right, wall, offCanvas].map((component) => [component.id, component])
+		);
+		const connection: SchematicConnection = {
+			from: { componentId: 'L', port: 'out' },
+			to: { componentId: 'R', port: 'in' },
+			color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 9
+		};
+		expect(() => routeConnection(connection, components, { width: 500, height: 200 })).toThrow(
+			'Line 9: No collision-free orthogonal route exists.'
+		);
+	});
+
+	test('elides redundant vertical commands when a bridge consumes a segment edge', () => {
+		const lookup = new Map<string, SchematicComponent>();
+		const terminal = (id: string, x: number, y: number): PortComponent => {
+			const component: PortComponent = { kind: 'port', id, label: id, x, y, color: token, line: 1 };
+			lookup.set(id, component);
+			return component;
+		};
+		const leftTop = terminal('LT', 50, 58);
+		const rightTop = terminal('RT', 450, 58);
+		const leftBottom = terminal('LB', 50, 182);
+		const rightBottom = terminal('RB', 450, 182);
+		const top: SchematicComponent = { kind: 'cnot', id: 'T', label: 'T', x: 250, y: 40, color: token, line: 1 };
+		const bottom: SchematicComponent = { ...top, id: 'B', y: 200 };
+		lookup.set(top.id, top);
+		lookup.set(bottom.id, bottom);
+		const connection = (from: SchematicComponent, fromPort: string, to: SchematicComponent, toPort: string): SchematicConnection => ({
+			from: { componentId: from.id, port: fromPort },
+			to: { componentId: to.id, port: toPort },
+			color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 2
+		});
+		const endpointOnlyMap = {
+			get: (id: string) => lookup.get(id),
+			values: () => [][Symbol.iterator]()
+		} as unknown as ReadonlyMap<string, SchematicComponent>;
+		const routes = routeConnections([
+			connection(leftTop, 'out', rightTop, 'in'),
+			connection(leftBottom, 'out', rightBottom, 'in'),
+			connection(top, 'target', bottom, 'control')
+		], endpointOnlyMap);
+		expect(routes[2]!.d).toBe(
+			'M 250 56 A 2 2 0 0 0 250 60 V 180 A 2 2 0 0 0 250 184'
+		);
+	});
+
+	test('uses bounded A-star for staggered multi-channel obstacle mazes', () => {
+		const left: PortComponent = { kind: 'port', id: 'L', label: 'L', x: 50, y: 100, color: token, line: 1 };
+		const right: PortComponent = { ...left, id: 'R', x: 450 };
+		const upperWall: SchematicComponent = {
+			kind: 'lifeline', id: 'UP', label: 'UP', x: 200, y: 65, color: token, line: 1,
+			bodyWidth: 40, bodyHeight: 130
+		};
+		const lowerWall: SchematicComponent = {
+			...upperWall, id: 'DOWN', x: 300, y: 135
+		};
+		const components = new Map(
+			[left, right, upperWall, lowerWall].map((component) => [component.id, component])
+		);
+		const route = routeConnection({
+			from: { componentId: 'L', port: 'out' },
+			to: { componentId: 'R', port: 'in' },
+			color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 12
+		}, components, { width: 500, height: 200 });
+		expect(route.points.length).toBeGreaterThanOrEqual(6);
+		expect(route.d).toContain('V 58');
+		expect(route.d).toContain('V 142');
+	});
+
+	test('post-validates endpoint escape spans against tightly packed neighbors', () => {
+		const node = (id: string, x: number, y: number): SchematicComponent => ({
+			kind: 'cnot', id, label: id, x, y, color: token, line: 1
+		});
+		const top = node('TOP', 290, 40);
+		const bottom = node('BOTTOM', 290, 200);
+		const neighbor = node('NEIGHBOR', 294, 40);
+		const components = new Map(
+			[top, bottom, neighbor].map((component) => [component.id, component])
+		);
+		expect(() => routeConnection({
+			from: { componentId: 'TOP', port: 'target' },
+			to: { componentId: 'BOTTOM', port: 'control' },
+			color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 13
+		}, components)).toThrow('Line 13: Orthogonal route intersects NEIGHBOR after routing.');
+	});
+
+	test('caps adversarial crossing growth before quadratic output allocation', () => {
+		const lookup = new Map<string, SchematicComponent>();
+		const connections: SchematicConnection[] = [];
+		const register = (component: SchematicComponent) => {
+			lookup.set(component.id, component);
+			return component;
+		};
+		for (let index = 0; index < 182; index += 1) {
+			const x = 100 + index * 2;
+			const top = register({ kind: 'cnot', id: `VT${index}`, label: 'V', x, y: 40, color: token, line: 1 });
+			const bottom = register({ ...top, id: `VB${index}`, y: 600 });
+			connections.push({
+				from: { componentId: top.id, port: 'target' },
+				to: { componentId: bottom.id, port: 'control' },
+				color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 20
+			});
+		}
+		for (let index = 0; index < 182; index += 1) {
+			const y = 100 + index * 2;
+			const left = register({ kind: 'port', id: `HL${index}`, label: 'H', x: 20, y, color: token, line: 1 });
+			const right = register({ ...left, id: `HR${index}`, x: 600 });
+			connections.push({
+				from: { componentId: left.id, port: 'out' },
+				to: { componentId: right.id, port: 'in' },
+				color: token, curve: 'ortho', markerStart: 'none', markerEnd: 'none', line: 21
+			});
+		}
+		const endpointOnlyMap = {
+			get: (id: string) => lookup.get(id),
+			values: () => [][Symbol.iterator]()
+		} as unknown as ReadonlyMap<string, SchematicComponent>;
+		expect(() => routeConnections(connections, endpointOnlyMap)).toThrow(
+			`Wire crossing complexity exceeds ${MAX_SCHEMATIC_WIRE_CROSSINGS.toLocaleString('en-US')} intersections.`
+		);
+	});
+
+	test('rejects a caller-supplied routed array with the wrong cardinality', () => {
+		const component: PassiveComponent = {
+			kind: 'resistor', id: 'R', label: 'R', x: 100, y: 100, color: token, line: 1
+		};
+		const connection: SchematicConnection = {
+			from: { componentId: 'R', port: 'out' },
+			to: { componentId: 'R', port: 'in' },
+			color: token, curve: 'line', markerStart: 'none', markerEnd: 'none', line: 2
+		};
+		expect(() => validateDocumentGeometry(
+			{ components: [component], connections: [connection] },
+			{ bounds: { width: 300, height: 220 }, title: 'Mismatch' },
+			[]
+		)).toThrow('Routed connection count does not match');
 	});
 
 	test('does not bridge perpendicular segments whose finite ranges do not meet', () => {
