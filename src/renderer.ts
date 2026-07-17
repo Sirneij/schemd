@@ -25,6 +25,7 @@ import { assertParsedSchematicDocument } from './parser.js';
 import {
 	CLASSICAL_GATE_KINDS,
 	SCHEMD_OUTPUT_MODES,
+	SCHEMD_SEMANTIC_HOOKS,
 	UML_COMPONENT_KINDS,
 	SchematicSyntaxError,
 	type ClassicalGateComponent,
@@ -37,6 +38,7 @@ import {
 	type SchematicComponent,
 	type SchematicConnection,
 	type SchematicDocument,
+	type SchematicSemanticHook,
 	type SchemdOutputMode,
 	type TransistorComponent,
 	type UmlClassComponent,
@@ -72,6 +74,18 @@ interface NormalizedCompileOptions extends CompileSchematicOptions {
 	title: string;
 	/** Explicit output-budget mode. */
 	mode: SchemdOutputMode;
+	/** Constant-time full-mode hook lookup. */
+	semanticHookMask: number;
+}
+
+const NODE_HOOK = 1;
+const PORT_HOOK = 2;
+const WIRE_HOOK = 4;
+
+function semanticHookBit(hook: SchematicSemanticHook): number {
+	if (hook === 'nodes') return NODE_HOOK;
+	if (hook === 'ports') return PORT_HOOK;
+	return WIRE_HOOK;
 }
 
 /**
@@ -208,9 +222,28 @@ function normalizeCompileOptions(value: unknown): NormalizedCompileOptions {
 		throw new SchematicSyntaxError('Render mode must be one of: default, embedded-css, or full.');
 	}
 	const normalizedMode = (mode ?? 'default') as SchemdOutputMode;
+	const rawSemanticHooks = candidate.semanticHooks;
+	let semanticHookMask = NODE_HOOK | PORT_HOOK | WIRE_HOOK;
+	if (rawSemanticHooks !== undefined) {
+		if (!Array.isArray(rawSemanticHooks)) {
+			throw new SchematicSyntaxError('Render semanticHooks must be an array.');
+		}
+		semanticHookMask = 0;
+		for (const hook of rawSemanticHooks) {
+			if (
+				typeof hook !== 'string' ||
+				!SCHEMD_SEMANTIC_HOOKS.includes(hook as SchematicSemanticHook)
+			) {
+				throw new SchematicSyntaxError(
+					'Render semanticHooks may contain only: nodes, ports, or wires.'
+				);
+			}
+			semanticHookMask |= semanticHookBit(hook as SchematicSemanticHook);
+		}
+	}
 	return idPrefix === undefined
-		? { bounds: { width, height }, title, mode: normalizedMode }
-		: { bounds: { width, height }, title, idPrefix, mode: normalizedMode };
+		? { bounds: { width, height }, title, mode: normalizedMode, semanticHookMask }
+		: { bounds: { width, height }, title, idPrefix, mode: normalizedMode, semanticHookMask };
 }
 
 /**
@@ -975,6 +1008,8 @@ function componentMarkup(
 	idPrefix: string,
 	glowId: string,
 	mode: SchemdOutputMode,
+	nodeHooks: boolean,
+	portHooks: boolean,
 	symbolId: string | undefined
 ): string {
 	const label = escapeXml(component.label);
@@ -983,12 +1018,11 @@ function componentMarkup(
 	const id = escapeXml(component.id);
 	const vectorId = `${idPrefix}-node-${index}-vector`;
 	const styles = mode === 'embedded-css' || mode === 'full';
-	const hooks = mode === 'full';
-	const dataAttributes = hooks
+	const dataAttributes = nodeHooks
 		? ` data-node-id="${id}" data-node-kind="${component.kind}" data-node-label="${label}" data-component="${id}" data-kind="${component.kind}"`
 		: '';
 	let accessibility = '';
-	if (styles || hooks) {
+	if (styles) {
 		const metadata = componentMetadata(component);
 		const ariaLabel = escapeXml(
 			`${component.id}, ${component.kind}, ${component.label}${metadata === '' ? '' : `, ${metadata}`}`
@@ -999,7 +1033,7 @@ function componentMarkup(
 	const glow = styles
 		? `<use class="schematic-glow-layer" href="#${vectorId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />`
 		: '';
-	const hotspots = hooks ? componentPortMarkup(component) : '';
+	const hotspots = portHooks ? componentPortMarkup(component) : '';
 	const vector =
 		symbolId === undefined
 			? `<g${vectorIdAttribute} class="schematic-component-vector">${componentShape(component)}</g>`
@@ -1048,6 +1082,9 @@ export function renderSchematic(
 	const glowId = `${safePrefix}-schematic-glow-filter`;
 	const styles = normalized.mode === 'embedded-css' || normalized.mode === 'full';
 	const hooks = normalized.mode === 'full';
+	const nodeHooks = hooks && (normalized.semanticHookMask & NODE_HOOK) !== 0;
+	const portHooks = hooks && (normalized.semanticHookMask & PORT_HOOK) !== 0;
+	const wireHooks = hooks && (normalized.semanticHookMask & WIRE_HOOK) !== 0;
 	const reusableSymbols = new Map<string, { id: string; component: SchematicComponent }>();
 	for (const component of document.components) {
 		const key = reusableSymbolKey(component);
@@ -1059,7 +1096,7 @@ export function renderSchematic(
 	const componentCount = document.components.length;
 	const description = `${componentCount} component${componentCount === 1 ? '' : 's'} and ${document.connections.length} connection${document.connections.length === 1 ? '' : 's'}.`;
 	const writer = new BoundedSvgWriter();
-	const hookStyles = hooks ? HOOK_SVG_STYLES : '';
+	const hookStyles = portHooks ? HOOK_SVG_STYLES : '';
 	const interactionStyles = styles ? INTERACTIVE_SVG_STYLES : '';
 	const glowFilter = styles
 		? `<filter id="${glowId}" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="2.2" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>`
@@ -1078,7 +1115,7 @@ export function renderSchematic(
 	writer.append(
 		`<figure class="schematic-frame"${hooks ? ' data-schematic' : ''}><svg class="schematic-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${normalized.bounds.width} ${normalized.bounds.height}" width="${normalized.bounds.width}" height="${normalized.bounds.height}" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="${titleId} ${descriptionId}" preserveAspectRatio="xMidYMid meet"><title id="${titleId}">${title}</title><desc id="${descriptionId}">${description}</desc>${definitions === '' ? '' : `<defs>${definitions}</defs>`}${styles ? `<rect class="schematic-surface" width="100%" height="100%" /><rect class="schematic-grid" width="100%" height="100%" fill="url(#${gridId})" />` : ''}<g class="schematic-vectors">`
 	);
-	if (hooks) {
+	if (wireHooks) {
 		for (const [index, connection] of document.connections.entries()) {
 			writer.append(
 				connectionMarkup(connection, routedConnections[index]!, index, safePrefix, glowId)
@@ -1098,7 +1135,9 @@ export function renderSchematic(
 	for (const [index, component] of document.components.entries()) {
 		const key = reusableSymbolKey(component);
 		const symbolId = key === undefined ? undefined : reusableSymbols.get(key)?.id;
-		writer.append(componentMarkup(component, index, safePrefix, glowId, normalized.mode, symbolId));
+		writer.append(
+			componentMarkup(component, index, safePrefix, glowId, normalized.mode, nodeHooks, portHooks, symbolId)
+		);
 	}
 	writer.append(`</g></svg><figcaption>${title}</figcaption></figure>`);
 	return writer.finish();

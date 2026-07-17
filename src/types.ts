@@ -335,6 +335,11 @@ export const SCHEMD_OUTPUT_MODES = ['default', 'embedded-css', 'full'] as const;
 /** Static, CSS-enhanced, or fully attributed SVG output mode. */
 export type SchemdOutputMode = (typeof SCHEMD_OUTPUT_MODES)[number];
 
+/** Optional semantic payloads emitted by `full` mode. */
+export const SCHEMD_SEMANTIC_HOOKS = ['nodes', 'ports', 'wires'] as const;
+/** A selectable delegated-interaction payload. */
+export type SchematicSemanticHook = (typeof SCHEMD_SEMANTIC_HOOKS)[number];
+
 /** Marker primitives that can terminate or originate a signal trace. */
 export const SCHEMATIC_SIGNAL_MARKERS = [
 	'none',
@@ -354,18 +359,8 @@ export interface CompileSchematicOptions extends SchematicFence {
 	idPrefix?: string;
 	/** Markup and interaction budget for the generated SVG. */
 	mode?: SchemdOutputMode;
-}
-
-/** Configuration accepted by the type-only Marked extension factory. */
-export interface SchematicMarkedOptions {
-	/** Accessible title used when the fence omits one. */
-	defaultTitle?: string;
-	/** Fixed output mode for every schemd fence in a Markdown pass. */
-	mode?: SchemdOutputMode;
-	/** Synchronous mode resolver for hosts with request-scoped rendering state. */
-	resolveMode?: () => SchemdOutputMode;
-	/** Optional safe fallback renderer for bounded syntax failures. */
-	onError?: (error: SchematicSyntaxError, source: string) => string;
+	/** Full-mode metadata to emit. Defaults to nodes, ports, and wires. */
+	semanticHooks?: readonly SchematicSemanticHook[];
 }
 
 /**

@@ -1,15 +1,17 @@
 /**
  * Stable public entry point for the `schemd` server-side compiler.
  *
- * All runtime exports are dependency-free. The Marked integration imports
- * Marked contracts as types only, so applications pay for no Markdown runtime
- * unless they already provide one at the host boundary.
+ * All runtime exports are dependency-free and safe to run without a DOM.
  *
  * @packageDocumentation
  */
 export { parseSchematic, parseSchematicColor, parseSchematicFence } from './parser.js';
 export { renderSchematic } from './renderer.js';
-export { schematicMarkedExtension } from './marked-extension.js';
+export {
+	compileSchematic,
+	type SchematicCompilation,
+	type SchematicCompilationMetrics
+} from './compiler.js';
 export {
 	mathLabelGlyphLength,
 	mathLabelTextWidth,
@@ -63,6 +65,7 @@ export {
 	UML_COMPONENT_KINDS,
 	UML_RELATION_KINDS,
 	SCHEMD_OUTPUT_MODES,
+	SCHEMD_SEMANTIC_HOOKS,
 	SchematicSyntaxError,
 	type AnalogKind,
 	type CompileSchematicOptions,
@@ -88,7 +91,7 @@ export {
 	type SchematicEndpoint,
 	type SchematicFence,
 	type SchematicSignalMarker,
-	type SchematicMarkedOptions,
+	type SchematicSemanticHook,
 	type SchematicPoint,
 	type SchemdOutputMode,
 	type TransistorComponent,

@@ -102,6 +102,43 @@ describe('renderSchematic', () => {
 		expect(hooks).toContain('transition:');
 	});
 
+	test('emits only the requested full-mode semantic hooks', () => {
+		const document = parseSchematic(
+			'resistor:R1 "A" at (80, 80) #amber\ncapacitor:C1 "B" at (200, 80) #blue\nR1.out -> C1.in #slate',
+			fence
+		);
+		const html = renderSchematic(document, {
+			...fence,
+			mode: 'full',
+			semanticHooks: ['nodes', 'wires']
+		});
+		expect(html).toContain('data-node-id="R1"');
+		expect(html).toContain('data-wire-source="R1.out"');
+		expect(html).not.toContain('data-port-id');
+		expect(html).not.toContain('.schematic-port-hotspot:focus-visible');
+
+		const visualsOnly = renderSchematic(document, {
+			...fence,
+			mode: 'full',
+			semanticHooks: []
+		});
+		expect(visualsOnly).not.toContain('data-node-id');
+		expect(visualsOnly).not.toContain('data-wire-source');
+		expect(visualsOnly).not.toContain('data-port-id');
+		expect(visualsOnly).toContain('schematic-glow-filter');
+	});
+
+	test('rejects unknown semantic hooks at the JavaScript boundary', () => {
+		const document = parseSchematic('resistor:R1 "A" at (80, 80) #amber', fence);
+		expect(() =>
+			renderSchematic(document, {
+				...fence,
+				mode: 'full',
+				semanticHooks: ['unknown']
+			} as unknown as CompileSchematicOptions)
+		).toThrow('semanticHooks may contain only');
+	});
+
 	test('keeps both interaction payloads measurably absent until requested', () => {
 		const document = parseSchematic(source, fence);
 		const bytes = (mode: Exclude<CompileSchematicOptions['mode'], undefined>): number =>

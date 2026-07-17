@@ -1,6 +1,6 @@
 {
 	"name": "@schemd/core",
-	"version": "0.1.2",
+	"version": "0.2.0",
 	"description": "Zero-dependency text-to-SVG compiler for schematics and UML.",
 	"homepage": "https://johnowolabiidogun.dev/tools/schemd/docs/overview",
 	"bugs": {
@@ -32,6 +32,10 @@
 			"types": "./dist/renderer.d.ts",
 			"import": "./dist/renderer.js"
 		},
+		"./compiler": {
+			"types": "./dist/compiler.d.ts",
+			"import": "./dist/compiler.js"
+		},
 		"./layout": {
 			"types": "./dist/layout.d.ts",
 			"import": "./dist/layout.js"
@@ -39,10 +43,6 @@
 		"./math-label": {
 			"types": "./dist/math-label.d.ts",
 			"import": "./dist/math-label.js"
-		},
-		"./marked": {
-			"types": "./dist/marked-extension.d.ts",
-			"import": "./dist/marked-extension.js"
 		},
 		"./types": {
 			"types": "./dist/types.d.ts",
@@ -56,17 +56,8 @@
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage"
 	},
-	"peerDependencies": {
-		"marked": ">=17 <19"
-	},
-	"peerDependenciesMeta": {
-		"marked": {
-			"optional": true
-		}
-	},
 	"devDependencies": {
 		"@vitest/coverage-v8": "^4.1.10",
-		"marked": "^18.0.6",
 		"typescript": "^6.0.3",
 		"vitest": "^4.1.10"
 	},
@@ -75,7 +66,6 @@
 	},
 	"keywords": [
 		"schemd",
-		"marked",
 		"schematic",
 		"svg",
 		"compiler",

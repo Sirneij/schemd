@@ -10,18 +10,18 @@ Schemd has no runtime dependencies, browser layout pass, or DOM requirement. It 
 npm install @schemd/core
 ```
 
-Node.js 24+ is required. Install `marked` too if you use Markdown fences.
+Node.js 24+ is required.
 
 ## Quick start
 
 ```ts
-import { parseSchematic, parseSchematicFence, renderSchematic } from "@schemd/core";
+import { compileSchematic, parseSchematicFence } from "@schemd/core";
 
 const fence = parseSchematicFence(
   'schemd bounds="640x260" title="Sensor input"',
 )!;
 
-const diagram = parseSchematic(`
+const { svg, document, metrics } = compileSchematic(`
 port:VIN "Input" at (60, 130) #blue
 resistor:R1 "10 k\\Omega" at (220, 130) #amber
 capacitor:C1 "100 nF" at (400, 130) #cyan
@@ -29,8 +29,6 @@ capacitor:C1 "100 nF" at (400, 130) #cyan
 VIN.out -> R1.in #blue [ortho]
 R1.out -> C1.in #amber [ortho]
 `, fence);
-
-const html = renderSchematic(diagram, fence);
 ```
 
 The DSL is intentionally small:
@@ -55,6 +53,6 @@ Class, actor, use-case, state, lifeline, note, package, initial, and final nodes
 
 Use `mode: "embedded-css"` for built-in styling or `mode: "full"` for interaction metadata. The default output stays compact and static.
 
-For Markdown, use `schematicMarkedExtension()` from the main package or the `@schemd/core/marked` subpath.
+Markdown belongs at the host boundary. Detect `schemd` fences in your server-side Markdown renderer and pass their text to `compileSchematic`; core does not ship or require a Markdown parser.
 
 [Documentation](https://johnowolabiidogun.dev/tools/schemd/docs/overview) · [Issues](https://github.com/Sirneij/schemd/issues) · [MIT](https://github.com/Sirneij/schemd/blob/main/LICENSE)

@@ -1,9 +1,7 @@
 /**
- * Hard compiler budgets shared by the parser, renderer, and Marked integration.
+ * Hard compiler budgets shared by the parser and renderer.
  *
  * `parseSchematic` and `renderSchematic` enforce these limits for one diagram.
- * `schematicMarkedExtension` additionally enforces them cumulatively across all
- * schematic fences encountered during one Marked document pass.
  *
  * @packageDocumentation
  */
