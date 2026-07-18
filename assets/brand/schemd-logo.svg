@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 200" role="img" aria-labelledby="title description">
+  <title id="title">Schemd</title>
+  <desc id="description">Schemd engineering vectors logo.</desc>
+  <defs>
+    <linearGradient id="surface" x1="0" y1="0" x2="720" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111817" />
+      <stop offset="1" stop-color="#080b0b" />
+    </linearGradient>
+    <linearGradient id="signal" x1="42" y1="68" x2="158" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9aead1" />
+      <stop offset="1" stop-color="#52c7a5" />
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="718" height="198" rx="28" fill="url(#surface)" stroke="#29473f" stroke-width="2" />
+  <g>
+    <rect x="24" y="24" width="152" height="152" rx="30" fill="#0c1110" stroke="#33574d" stroke-width="2" />
+    <path d="M44 72h31l17 28h16l17-28h31M44 128h31l17-28m16 0 17 28h31" fill="none" stroke="url(#signal)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M92 100h16" stroke="#e1a15c" stroke-width="8" stroke-linecap="round" />
+    <g fill="#72dbbb" stroke="#080b0b" stroke-width="3">
+      <circle cx="44" cy="72" r="7" />
+      <circle cx="156" cy="72" r="7" />
+      <circle cx="44" cy="128" r="7" />
+      <circle cx="156" cy="128" r="7" />
+    </g>
+  </g>
+  <text x="210" y="106" fill="#f4f8f5" font-family="Inter, 'Fira Sans', system-ui, sans-serif" font-size="72" font-weight="640" letter-spacing="-3">schemd</text>
+  <path d="M214 128h430" stroke="#29473f" stroke-width="2" />
+  <text x="212" y="154" fill="#72dbbb" font-family="'Fira Code', ui-monospace, monospace" font-size="15" font-weight="600" letter-spacing="4">ENGINEERING VECTORS</text>
+</svg>
