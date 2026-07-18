@@ -8,64 +8,88 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test-and-coverage:
-    name: Test & Coverage
+  verify:
+    name: Verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: "npm"
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: bun ci
 
-      - name: Type-check and Build
-        run: |
-          npm run check
-          npm run build
+      - name: Type-check
+        run: bun run check
 
-      - name: Enforce Compiler Size Budget
-        run: npm run size
+      - name: Build package
+        run: bun run build
 
-      - name: Run Tests with Coverage
+      - name: Enforce compiler size budget
+        run: bun run size
+
+      - name: Run tests with coverage
+        shell: bash
         run: |
           set -o pipefail
-          echo "### Vitest Test & Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo '```txt' >> $GITHUB_STEP_SUMMARY
-          npm run test:coverage | tee -a $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "### Vitest Test & Coverage Report" >> "$GITHUB_STEP_SUMMARY"
+          echo '```txt' >> "$GITHUB_STEP_SUMMARY"
+          bun run test:coverage | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
   publish:
     name: Publish to npm
-    needs: test-and-coverage
+    needs: verify
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Node.js for npm trusted publishing
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install Dependencies
-        run: npm ci
+      - name: Install dependencies
+        run: bun ci
 
-      - name: Build Package
-        run: npm run build
+      - name: Verify release tag
+        shell: bash
+        run: |
+          package_version="$(bun -p "require('./package.json').version")"
+          if [[ "$GITHUB_REF_NAME" != "v${package_version}" ]]; then
+            echo "Release tag $GITHUB_REF_NAME does not match package version v${package_version}." >&2
+            exit 1
+          fi
+
+      - name: Build package
+        run: bun run build
+
+      - name: Enforce compiler size budget
+        run: bun run size
+
+      - name: Inspect package contents
+        run: npm pack --dry-run
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public

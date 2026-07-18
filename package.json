@@ -1,80 +1,85 @@
 {
-	"name": "@schemd/core",
-	"version": "0.2.1",
-	"description": "Zero-dependency text-to-SVG compiler for schematics and UML.",
-	"homepage": "https://johnowolabiidogun.dev/tools/schemd",
-	"bugs": {
-		"url": "https://github.com/Sirneij/schemd/issues"
-	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/Sirneij/schemd.git"
-	},
-	"type": "module",
-	"sideEffects": false,
-	"browser": false,
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"files": [
-		"dist",
-		"README.md",
-		"assets/brand/schemd-logo.svg",
-		"assets/brand/schemd-mark.svg"
-	],
-	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
-		"./parser": {
-			"types": "./dist/parser.d.ts",
-			"import": "./dist/parser.js"
-		},
-		"./renderer": {
-			"types": "./dist/renderer.d.ts",
-			"import": "./dist/renderer.js"
-		},
-		"./compiler": {
-			"types": "./dist/compiler.d.ts",
-			"import": "./dist/compiler.js"
-		},
-		"./layout": {
-			"types": "./dist/layout.d.ts",
-			"import": "./dist/layout.js"
-		},
-		"./math-label": {
-			"types": "./dist/math-label.d.ts",
-			"import": "./dist/math-label.js"
-		},
-		"./types": {
-			"types": "./dist/types.d.ts",
-			"import": "./dist/types.js"
-		}
-	},
-	"scripts": {
-		"build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.build.json && tsc -p tsconfig.types.json",
-		"check": "tsc -p tsconfig.json --noEmit",
-		"prepack": "npm run build",
-		"size": "node scripts/check-bundle-size.mjs",
-		"test": "vitest run",
-		"test:coverage": "vitest run --coverage"
-	},
-	"devDependencies": {
-		"@vitest/coverage-v8": "^4.1.10",
-		"typescript": "^6.0.3",
-		"vite": "^8.1.4",
-		"vitest": "^4.1.10"
-	},
-	"engines": {
-		"node": ">=24"
-	},
-	"keywords": [
-		"schemd",
-		"schematic",
-		"svg",
-		"compiler",
-		"engineering",
-		"uml"
-	],
-	"license": "MIT"
+  "name": "@schemd/core",
+  "version": "0.2.1",
+  "description": "Zero-dependency text-to-SVG compiler for schematics and UML.",
+  "homepage": "https://schemd.johnowolabiidogun.dev",
+  "bugs": {
+    "url": "https://github.com/schemd/core/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schemd/core.git"
+  },
+  "author": {
+    "name": "John Owolabi Idogun",
+    "url": "https://www.johnowolabiidogun.dev"
+  },
+  "packageManager": "bun@1.3.14",
+  "type": "module",
+  "sideEffects": false,
+  "browser": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "assets/brand/schemd-logo.svg",
+    "assets/brand/schemd-mark.svg"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./parser": {
+      "types": "./dist/parser.d.ts",
+      "import": "./dist/parser.js"
+    },
+    "./renderer": {
+      "types": "./dist/renderer.d.ts",
+      "import": "./dist/renderer.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler.d.ts",
+      "import": "./dist/compiler.js"
+    },
+    "./layout": {
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.js"
+    },
+    "./math-label": {
+      "types": "./dist/math-label.d.ts",
+      "import": "./dist/math-label.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.build.json && tsc -p tsconfig.types.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "bun run build",
+    "size": "node scripts/check-bundle-size.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "keywords": [
+    "schemd",
+    "schematic",
+    "svg",
+    "compiler",
+    "engineering",
+    "uml"
+  ],
+  "license": "MIT"
 }

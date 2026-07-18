@@ -25,14 +25,17 @@ const fence = parseSchematicFence(
   'schemd bounds="640x260" title="Sensor input"',
 )!;
 
-const { svg, document, metrics } = compileSchematic(`
+const { svg, document, metrics } = compileSchematic(
+  `
 port:VIN "Input" at (60, 130) #blue
 resistor:R1 "10 k\\Omega" at (220, 130) #amber
 capacitor:C1 "100 nF" at (400, 130) #cyan
 
 VIN.out -> R1.in #blue [ortho]
 R1.out -> C1.in #amber [ortho]
-`, fence);
+`,
+  fence,
+);
 ```
 
 The DSL is intentionally small:
@@ -67,4 +70,4 @@ Markdown belongs at the host boundary. Detect `schemd` fences in your server-sid
 
 Known limits and contributor-sized work live in the [active roadmap](./ROADMAP.md). Pick an item, open its claim link, and agree on the approach before starting a large change. Completed items are removed after merge.
 
-[Documentation](https://johnowolabiidogun.dev/tools/schemd/docs/overview) · [Roadmap](./ROADMAP.md) · [Issues](https://github.com/Sirneij/schemd/issues) · [MIT](https://github.com/Sirneij/schemd/blob/main/LICENSE)
+[Documentation](https://johnowolabiidogun.dev/tools/schemd/docs/overview) · [Roadmap](./ROADMAP.md) · [Issues](https://github.com/schemd/core/issues) · [MIT](https://github.com/schemd/core/blob/main/LICENSE)
