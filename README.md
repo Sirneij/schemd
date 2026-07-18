@@ -11,7 +11,7 @@ Schemd has no runtime dependencies, browser layout pass, or DOM requirement. It 
 ## Install
 
 ```sh
-npm install @schemd/core
+npm i @schemd/core # bun i @schemd/core
 ```
 
 Node.js 24+ is required.
