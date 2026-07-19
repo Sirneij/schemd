@@ -762,7 +762,7 @@ function connectionMarkup(
 	const source = escapeXml(`${connection.from.componentId}.${connection.from.port}`);
 	const target = escapeXml(`${connection.to.componentId}.${connection.to.port}`);
 	const traceId = `${idPrefix}-wire-${index}-vector`;
-	const dataAttributes = ` data-wire-source="${source}" data-wire-target="${target}"`;
+	const dataAttributes = ` data-wire-source="${source}" data-wire-target="${target}" data-source-line="${connection.line}"`;
 	/* v8 ignore next -- parsed documents always materialize relation; fallback preserves old typed ASTs. */
 	const relation = connection.relation ?? 'signal';
 	const accessibility = ` tabindex="0" role="group" aria-label="${escapeXml(relation)} from ${source} to ${target}"`;
@@ -978,7 +978,7 @@ function componentMarkup(
 	const vectorId = `${idPrefix}-node-${index}-vector`;
 	const styles = mode === 'embedded-css' || mode === 'full';
 	const dataAttributes = nodeHooks
-		? ` data-node-id="${id}" data-node-kind="${component.kind}" data-node-label="${label}" data-component="${id}" data-kind="${component.kind}"`
+		? ` data-node-id="${id}" data-node-kind="${component.kind}" data-node-label="${label}" data-component="${id}" data-kind="${component.kind}" data-source-line="${component.line}"`
 		: '';
 	let accessibility = '';
 	if (styles) {

@@ -55,7 +55,9 @@ describe('renderSchematic', () => {
 			'data-node-id="R1" data-node-kind="resistor" data-node-label="10k &amp; stable"'
 		);
 		expect(html).toContain('data-component="R1" data-kind="resistor"');
-		expect(html).toContain('data-wire-source="R1.out" data-wire-target="C1.in" tabindex="0"');
+		expect(html).toContain(
+			'data-wire-source="R1.out" data-wire-target="C1.in" data-source-line="7" tabindex="0"'
+		);
 		expect(html).toContain('data-port-id="out" data-parent-node="R1" tabindex="0" role="button"');
 		expect(html).toContain('stroke-width:8;vector-effect:non-scaling-stroke');
 		expect(html).not.toContain('<script');

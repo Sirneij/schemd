@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/brand/schemd-logo.svg" alt="Schemd — engineering vectors" width="640" />
+  <img src="https://github.com/schemd/web/blob/main/src/lib/assets/brand/schemd-logo.svg" alt="Schemd — engineering vectors" width="640" />
 </p>
 
 # @schemd/core

@@ -9,8 +9,12 @@ export { parseSchematic, parseSchematicColor, parseSchematicFence } from './pars
 export { renderSchematic } from './renderer.js';
 export {
 	compileSchematic,
+	schematicSourceMap,
 	type SchematicCompilation,
-	type SchematicCompilationMetrics
+	type SchematicCompilationMetrics,
+	type SchematicSourceMap,
+	type SchematicNodeSource,
+	type SchematicWireSource
 } from './compiler.js';
 export {
 	mathLabelGlyphLength,
