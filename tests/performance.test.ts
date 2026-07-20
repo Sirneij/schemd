@@ -1,4 +1,3 @@
-import { performance } from 'node:perf_hooks';
 import { describe, expect, test } from 'vitest';
 
 import { compileSchematic } from '../src/index.js';
@@ -32,13 +31,13 @@ function denseRoutingFixture(): string {
 
 describe('operation-based performance regression gates', () => {
 	test('keeps the maximum component fixture bounded in time and bytes per instance', () => {
-		const startedAt = performance.now();
+		const startedAt = Date.now();
 		const result = compileSchematic(repeatedResistors(512), {
 			bounds: { width: 4096, height: 2200 },
 			title: 'Maximum component performance gate',
 			idPrefix: 'perf-max'
 		});
-		const elapsedMs = performance.now() - startedAt;
+		const elapsedMs = Date.now() - startedAt;
 
 		expect(result.document.components).toHaveLength(512);
 		expect(result.metrics.svgBytes / result.document.components.length).toBeLessThan(600);
@@ -46,13 +45,13 @@ describe('operation-based performance regression gates', () => {
 	});
 
 	test('keeps dense orthogonal routing bounded in time and bytes per connection', () => {
-		const startedAt = performance.now();
+		const startedAt = Date.now();
 		const result = compileSchematic(denseRoutingFixture(), {
 			bounds: { width: 1600, height: 1300 },
 			title: 'Dense routing performance gate',
 			idPrefix: 'perf-dense'
 		});
-		const elapsedMs = performance.now() - startedAt;
+		const elapsedMs = Date.now() - startedAt;
 
 		expect(result.document.connections).toHaveLength(32);
 		expect(result.metrics.svgBytes / result.document.connections.length).toBeLessThan(1_500);
