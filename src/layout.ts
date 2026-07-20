@@ -314,7 +314,7 @@ export function quantumGateDimensions(component: QuantumGateComponent): {
 	stubExtent: number;
 } {
 	const details = [component.parameter, component.phase, component.matrix].filter(
-		(value): value is string => value !== undefined
+		(value): value is string => value !== undefined && value !== ''
 	);
 	let widest = 16;
 	if (details.length > 0 && component.kind === 'qgate') widest = mathLabelTextWidth(component.label, 8);
@@ -1504,6 +1504,12 @@ function routeConnectionInternal(
 			throw new SchematicSyntaxError('No collision-free orthogonal route exists.', connection.line);
 		}
 		const points = compactOrthogonalPoints([start, ...middle, end]);
+		/*
+		 * The final guard rejects only physical body clips. Escape stubs merged into
+		 * the first or last segment legitimately pass through a *neighbor's* clearance
+		 * ring whenever components sit closer than twice the routing margin, so
+		 * validating expanded rectangles here would fail dense-but-clean diagrams.
+		 */
 		for (let index = 1; index < points.length; index += 1) {
 			const allowFrom = index === 1;
 			const allowTo = index === points.length - 1;
@@ -1511,7 +1517,7 @@ function routeConnectionInternal(
 				if (
 					!(allowFrom && obstacle.id === from.component.id) &&
 					!(allowTo && obstacle.id === to.component.id) &&
-					segmentIntersectsRectangle(points[index - 1]!, points[index]!, obstacleRectangle(obstacle))
+					segmentIntersectsRectangle(points[index - 1]!, points[index]!, obstacle.body)
 				) {
 					throw new SchematicSyntaxError(
 						`Orthogonal route intersects ${obstacle.id} after routing.`,

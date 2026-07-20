@@ -1216,7 +1216,8 @@ function compactConnectionMarkup(
 		const endpoints = batch.endpoints.length === 0 ? '' : `<path ${nodePaint} d="${batch.endpoints.join(' ')}" />`;
 		const labels = batch.labels.join('');
 		if (!embedVisuals) return trace + endpoints + labels;
-		return `<g class="schematic-wire" tabindex="0" role="group" aria-label="${batch.traces.length} grouped connection${batch.traces.length === 1 ? '' : 's'}">${trace}<use class="schematic-glow-layer" href="#${traceId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />${endpoints}${labels}</g>`;
+		/* Embedded-css output stays role="img": hover-only groups must not enter the tab order. */
+		return `<g class="schematic-wire">${trace}<use class="schematic-glow-layer" href="#${traceId}" filter="url(#${glowId})" aria-hidden="true" pointer-events="none" />${endpoints}${labels}</g>`;
 	}).join('');
 }
 
@@ -1322,7 +1323,7 @@ function componentMarkup(
 		? ` data-node-id="${id}" data-node-kind="${component.kind}" data-node-label="${label}" data-component="${id}" data-kind="${component.kind}" data-source-line="${component.line}"${'orientation' in component && component.orientation !== undefined ? ` data-orientation="${component.orientation}"` : ''}`
 		: '';
 	let accessibility = '';
-	if (styles) {
+	if (mode === 'full') {
 		const metadata = componentMetadata(component);
 		const ariaLabel = escapeXml(
 			`${component.id}, ${component.kind}, ${component.label}${metadata === '' ? '' : `, ${metadata}`}`
@@ -1365,19 +1366,34 @@ export function renderSchematic(
 ): string {
 	assertParsedSchematicDocument(document);
 	const normalized = normalizeCompileOptions(options);
-	const components = new Map(document.components.map((component) => [component.id, component]));
+	/*
+	 * A route-cache hit proves the parser already validated this exact frozen
+	 * document against these exact bounds, so geometry is re-verified (and the
+	 * component map materialized) only for uncached bounds.
+	 */
 	const routedConnections =
 		parsedSchematicRoutes(document, normalized.bounds) ??
-		routeConnections(document.connections, components, normalized.bounds);
-	validateDocumentGeometry(document, normalized, routedConnections);
-	const signature = `${normalized.bounds.width}x${normalized.bounds.height}:${normalized.title}:${JSON.stringify(document)}`;
-	const candidatePrefix = (normalized.idPrefix ?? `schematic-${stableHash(signature)}`).replace(
+		validateDocumentGeometry(
+			document,
+			normalized,
+			routeConnections(
+				document.connections,
+				new Map(document.components.map((component) => [component.id, component])),
+				normalized.bounds
+			)
+		);
+	/* Hashing serializes the entire AST, so the signature exists only when no idPrefix is supplied. */
+	const signatureHash = (): string =>
+		stableHash(
+			`${normalized.bounds.width}x${normalized.bounds.height}:${normalized.title}:${JSON.stringify(document)}`
+		);
+	const candidatePrefix = (normalized.idPrefix ?? `schematic-${signatureHash()}`).replace(
 		/[^A-Za-z0-9_-]/g,
 		'-'
 	);
 	const safePrefix = /[A-Za-z0-9]/.test(candidatePrefix)
 		? candidatePrefix
-		: `schematic-${stableHash(signature)}`;
+		: `schematic-${signatureHash()}`;
 	const titleId = `${safePrefix}-title`;
 	const descriptionId = `${safePrefix}-description`;
 	const gridId = `${safePrefix}-grid`;
@@ -1416,7 +1432,8 @@ export function renderSchematic(
 		? `<style>${STATIC_SVG_STYLES}${hookStyles}${interactionStyles}</style><pattern id="${gridId}" width="20" height="20" patternUnits="userSpaceOnUse"><path class="schematic-grid-line" d="M20 0H0V20" /></pattern>${glowFilter}`
 		: '';
 	const definitions = `${embeddedDefinitions}${markerDefinitions}${symbolDefinitions}`;
-	const svgRole = portHooks ? 'group' : 'img';
+	/* Any full-mode output contains focusable descendants, so the root must not flatten them. */
+	const svgRole = hooks ? 'group' : 'img';
 	writer.append(
 		`<figure class="schematic-frame"${hooks ? ' data-schematic' : ''}><svg class="schematic-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${normalized.bounds.width} ${normalized.bounds.height}" width="${normalized.bounds.width}" height="${normalized.bounds.height}" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" role="${svgRole}" aria-labelledby="${titleId} ${descriptionId}" preserveAspectRatio="xMidYMid meet"><title id="${titleId}">${title}</title><desc id="${descriptionId}">${description}</desc>${definitions === '' ? '' : `<defs>${definitions}</defs>`}${styles ? `<rect class="schematic-surface" width="100%" height="100%" /><rect class="schematic-grid" width="100%" height="100%" fill="url(#${gridId})" />` : ''}<g class="schematic-vectors">`
 	);

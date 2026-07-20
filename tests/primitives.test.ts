@@ -125,4 +125,19 @@ B1.bus -> P1.in #cyan [ortho width=8 signal=digital]`;
 		expect(svg.match(/id="[^"]+-symbol-quantum-shell-50-50"/g)).toHaveLength(1);
 		expect(svg.match(/href="#[^"]+-symbol-quantum-shell-50-50"/g)).toHaveLength(2);
 	});
+
+	test('ignores empty qgate detail rows so the shell never reserves blank text space', () => {
+		const svg = compileSchematic(
+			'hadamard:H1 "Hadamard" at (150, 150) #purple\nqgate:Q1 "Custom" at (350, 150) #purple [parameter=""]',
+			fence
+		).svg;
+		expect(svg.match(/href="#[^"]+-symbol-quantum-shell-50-50"/g)).toHaveLength(2);
+		expect(svg).not.toContain('quantum-shell-50-65');
+	});
+
+	test('collapses a single-wire barrier onto one centered quantum track', () => {
+		const svg = compileSchematic('barrier:X "b" at (150, 150) #purple [wires=1]', fence).svg;
+		expect(svg).toContain('d="M -42 0 H 42"');
+		expect(svg.match(/H 42/g)).toHaveLength(1);
+	});
 });

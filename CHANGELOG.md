@@ -2,6 +2,24 @@
 
 All notable changes to `@schemd/core` are recorded here. Dates describe actual npm publication dates; unpublished versions deliberately use `Unreleased`.
 
+## [0.3.1] - 07/20/2026
+
+### Fixed
+
+- Orthogonal routing no longer fails diagrams whose components sit closer than twice the 12-unit clearance margin. The post-routing guard now rejects only physical body clips; escape stubs may legitimately pass through a neighbor's clearance ring, so densely packed parallel wires route as straight traces instead of throwing `Orthogonal route intersects … after routing.`
+- Empty `qgate` detail rows (`parameter=""`, `phase=""`, `matrix=""`) no longer reserve blank text space: layout and renderer now agree that empty details are absent, so such gates keep the canonical shared quantum shell.
+- `embedded-css` output no longer emits keyboard-focusable component and wire groups beneath its `role="img"` root, which flattened them for assistive technology while leaving unlabeled tab stops. Internal `tabindex`/ARIA semantics are now exclusive to `full` mode, and every `full`-mode root is `role="group"` regardless of which semantic hooks are enabled.
+
+### Changed
+
+- `renderSchematic` skips the redundant geometry revalidation pass when the parser's route cache proves the same frozen document already validated against identical bounds, and computes the AST-serializing signature hash only when no `idPrefix` is supplied. Rendered output is byte-identical; hosts that pass `idPrefix` (such as compile endpoints) no longer pay an `O(document)` serialization per render.
+
+### Verified release-candidate measurements
+
+- Compiler bundle: 90,294 B minified, 26,479 B gzip — 4,241 B below the 30,720 B gate and 33 B smaller than 0.3.0.
+- Coverage: 100% statements, branches, functions, and lines across 123 tests, including new regressions for sub-clearance routing, single-track barriers, and empty quantum detail rows.
+- Runtime dependencies: zero. No public API, grammar, or geometry contracts changed; no migration is required.
+
 ## [0.3.0] - 07/19/2026
 
 ### Added

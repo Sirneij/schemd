@@ -142,4 +142,26 @@ describe('routing / bridge stress', () => {
 		expect(traces.length).toBe(23);
 		for (const d of traces) assertWellFormed(d);
 	});
+
+	test('routes straight parallel wires between components packed inside the clearance margin', () => {
+		// 20-unit pitch < 2x the 12-unit obstacle clearance: each stub necessarily
+		// crosses its neighbor's clearance ring while every body stays untouched.
+		for (const gap of [20, 26]) {
+			const lines: string[] = [];
+			for (let index = 0; index < 3; index += 1) {
+				lines.push(`port:T${index} "T" at (${300 + index * gap}, 80) #amber [orientation=down]`);
+				lines.push(`port:B${index} "B" at (${300 + index * gap}, 520) #amber [orientation=down]`);
+			}
+			for (let index = 0; index < 3; index += 1) {
+				lines.push(`T${index}.out -> B${index}.in #slate [ortho]`);
+			}
+			const compiled = compileSchematic(lines.join('\n'), FENCE);
+			const traces = tracePaths(compiled.svg);
+			expect(traces).toHaveLength(3);
+			for (const [index, d] of traces.entries()) {
+				assertWellFormed(d);
+				expect(d).toBe(`M ${300 + index * gap} 122 V 478`);
+			}
+		}
+	});
 });

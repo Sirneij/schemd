@@ -88,7 +88,8 @@ describe('renderSchematic', () => {
 		const styles = renderSchematic(document, { ...fence, mode: 'embedded-css' });
 		expect(styles).toContain('schematic-glow-filter');
 		expect(styles).toContain('schematic-glow-layer');
-		expect(styles).toContain('tabindex="0" role="group"');
+		/* role="img" flattens descendants for assistive tech, so nothing inside may take focus. */
+		expect(styles).not.toContain('tabindex=');
 		expect(styles).toContain('role="img" aria-labelledby=');
 		expect(styles).not.toContain('data-node-id');
 		expect(styles).not.toContain('data-port-id');
@@ -220,7 +221,9 @@ R2.out -> R3.in #blue [ortho marker-start=dot marker-end=arrow]`,
 		expect(minimal).toContain('-marker-arrow)"');
 		expect(minimal.match(/<marker /g)).toHaveLength(2);
 		const responsive = renderSchematic(document, { ...markerFence, mode: 'embedded-css' });
-		expect(responsive).toContain('aria-label="2 grouped connections"');
+		/* Hover-only wire groups stay out of the tab order under the root's role="img". */
+		expect(responsive).toContain('<g class="schematic-wire"><path');
+		expect(responsive).not.toContain('tabindex=');
 		expect(responsive).toContain('wire-batch-0-vector');
 		expect(responsive).toContain('schematic-glow-layer');
 
