@@ -46,6 +46,10 @@ describe('parseSchematicFence', () => {
 		expect(parseSchematicFence('SCHEMD bounds="640x260" title="Quantum path"', 'Fallback')).toEqual(
 			{ bounds: { width: 640, height: 260 }, title: 'Quantum path' }
 		);
+		expect(parseSchematicFence('schematic bounds="320x180" title="Legacy article"')).toEqual({
+			bounds: { width: 320, height: 180 },
+			title: 'Legacy article'
+		});
 	});
 
 	test('rejects missing metadata and each invalid bounds boundary', () => {
@@ -71,6 +75,65 @@ describe('parseSchematicFence', () => {
 });
 
 describe('parseSchematic', () => {
+	test('validates and snapshots the runtime parser boundary for JavaScript callers', () => {
+		const source = 'resistor:R1 "R" at (80, 80) #amber';
+		expect(() => parseSchematic(7 as unknown as string, fence)).toThrow(
+			/Schematic source must be a string/
+		);
+		const invalidFences: unknown[] = [
+			undefined,
+			null,
+			{},
+			{ bounds: null, title: 'x' },
+			{ bounds: '640x260', title: 'x' },
+			{ bounds: { width: '640', height: 260 }, title: 'x' },
+			{ bounds: { width: 640.5, height: 260 }, title: 'x' },
+			{ bounds: { width: 640, height: '260' }, title: 'x' },
+			{ bounds: { width: 640, height: 260.5 }, title: 'x' },
+			{ bounds: { width: 63, height: 260 }, title: 'x' },
+			{ bounds: { width: 640, height: 63 }, title: 'x' },
+			{ bounds: { width: 4097, height: 260 }, title: 'x' },
+			{ bounds: { width: 640, height: 4097 }, title: 'x' },
+			{ bounds: { width: 640, height: 260 }, title: 10 },
+			{ bounds: { width: 640, height: 260 }, title: '   ' },
+			{ bounds: { width: 640, height: 260 }, title: 'x'.repeat(513) }
+		];
+		for (const invalidFence of invalidFences) {
+			expect(() => parseSchematic(source, invalidFence as SchematicFence)).toThrow();
+		}
+
+		let boundsReads = 0;
+		let widthReads = 0;
+		let heightReads = 0;
+		let titleReads = 0;
+		const volatileFence = {
+			get bounds() {
+				boundsReads += 1;
+				return {
+					get width() {
+						widthReads += 1;
+						return widthReads === 1 ? 640 : 0;
+					},
+					get height() {
+						heightReads += 1;
+						return heightReads === 1 ? 260 : 0;
+					}
+				};
+			},
+			get title() {
+				titleReads += 1;
+				return titleReads === 1 ? 'Stable snapshot' : '';
+			}
+		} as unknown as SchematicFence;
+		expect(parseSchematic(source, volatileFence).components).toHaveLength(1);
+		expect({ boundsReads, widthReads, heightReads, titleReads }).toEqual({
+			boundsReads: 1,
+			widthReads: 1,
+			heightReads: 1,
+			titleReads: 1
+		});
+	});
+
 	test('tokenizes every component, semantic color, port, and path style', () => {
 		const document = parseSchematic(fullSource, fence);
 		expect(document.components.map(({ kind }) => kind)).toEqual([

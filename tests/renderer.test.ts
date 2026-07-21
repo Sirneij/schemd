@@ -352,6 +352,13 @@ ic:U1 "Flight control multiplexer" at (390, 130) #cyan [left="SELECT_LONG" right
 		expect(renderSchematic(document, fence)).toContain('2 components and 1 connection.');
 	});
 
+	test('exposes rendered micro-math text instead of raw source syntax to assistive technology', () => {
+		const document = parseSchematic('port:VOUT "V_{out} \\Omega" at (100, 80) #emerald', fence);
+		const html = renderSchematic(document, { ...fence, mode: 'full' });
+		expect(html).toContain('aria-label="VOUT, port, Vout Ω"');
+		expect(html).not.toContain('aria-label="VOUT, port, V_{out}');
+	});
+
 	test('guards renderer input when a caller bypasses parser validation', () => {
 		expect(() =>
 			renderSchematic(
@@ -482,9 +489,10 @@ ic:U1 "Flight control multiplexer" at (390, 130) #cyan [left="SELECT_LONG" right
 
 	test('aborts incremental rendering before exceeding the bounded SVG output budget', () => {
 		const writer = new BoundedSvgWriter();
-		const allocation = 'x'.repeat(MAX_SVG_OUTPUT_BYTES);
+		const allocation = 'x'.repeat(MAX_SVG_OUTPUT_BYTES - 1);
 		writer.append(allocation);
-		expect(writer.finish()).toBe(allocation);
 		expect(() => writer.append('é')).toThrow(/2,097,152 byte output limit/);
+		writer.append('x');
+		expect(writer.finish()).toBe(allocation + 'x');
 	});
 });

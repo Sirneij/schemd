@@ -2,6 +2,23 @@
 
 All notable changes to `@schemd/core` are recorded here. Dates describe actual npm publication dates; unpublished versions deliberately use `Unreleased`.
 
+## [Unreleased]
+
+### Fixed
+
+- The public parser now validates and snapshots JavaScript-supplied source, bounds, and title values before parsing or routing, preventing raw `TypeError`s and geometry changes from volatile accessors.
+- The documented legacy `schematic` fence identifier works again; recognition no longer rejects the alias before its compatibility grammar can run.
+- `schematicSourceMap` now enforces the same parser-provenance boundary as the renderer instead of trusting forged mutable documents.
+- The bounded SVG writer commits its byte count atomically, so a rejected multibyte append does not corrupt subsequent in-budget writes.
+- Full-mode component accessibility labels now expose rendered Unicode micro-math text instead of raw `_`, brace, and backslash syntax.
+- Grammar documentation no longer claims unsupported delimiter escaping.
+
+### Verified
+
+- Compiler bundle: 91,062 B minified, 26,435 B gzip — 4,285 B below the 30,720 B gate.
+- Coverage: 100% statements, branches, functions, and lines across 126 tests.
+- Runtime dependencies: zero.
+
 ## [0.3.1] - 07/20/2026
 
 ### Fixed

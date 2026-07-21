@@ -6,18 +6,18 @@
 
 `schemd`—pronounced like “skemd” (`/skɛmd/`)—is a strict, deterministic text-to-SVG compiler for electrical, digital, quantum, and UML diagrams. It has zero runtime dependencies and does not use a DOM, Canvas, browser layout, external fonts, raster assets, or `getBBox()`.
 
-Version 0.3.0 requires Node.js 24 or newer. The complete compiler bundle is 90,714 B minified and 26,398 B gzip, leaving 4,322 B below the enforced 30 KiB ceiling.
+Version 0.3.1 requires Node.js 24 or newer. The compiler is held below an enforced 30 KiB gzip ceiling.
 
 ## Install
 
 ```sh
-npm install --save-exact @schemd/core@0.3.0
+npm install @schemd/core
 ```
 
 ## Compile
 
 ```ts
-import { compileSchematic, parseSchematicFence } from '@schemd/core';
+import { compileSchematic, parseSchematicFence } from "@schemd/core";
 
 const fence = parseSchematicFence(
   'schemd bounds="760x460" title="RC low-pass filter"',
@@ -37,7 +37,7 @@ VOUT.node -> C1.in #cyan [ortho]
 C1.out -> RETURN.node #slate [line]
 VIN.negative -> RETURN.node #slate [ortho]
 RETURN.node -> GND.in #slate [line]`,
-  { ...fence, mode: 'full', semanticHooks: ['nodes', 'ports', 'wires'] },
+  { ...fence, mode: "full", semanticHooks: ["nodes", "ports", "wires"] },
 );
 
 console.log(result.svg, result.metrics);

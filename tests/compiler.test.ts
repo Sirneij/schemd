@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { compileSchematic, schematicSourceMap } from '../src/index.js';
+import { compileSchematic, schematicSourceMap, type SchematicDocument } from '../src/index.js';
 
 describe('compileSchematic', () => {
 	test('returns one validated result with exact UTF-8 metrics', () => {
@@ -76,5 +76,14 @@ describe('source map', () => {
 		});
 
 		expect(schematicSourceMap(result.document)).toEqual(result.sourceMap);
+	});
+
+	test('rejects forged documents at the standalone source-map boundary', () => {
+		expect(() =>
+			schematicSourceMap({
+				components: [],
+				connections: []
+			} as SchematicDocument)
+		).toThrow(/immutable document returned by parseSchematic/);
 	});
 });

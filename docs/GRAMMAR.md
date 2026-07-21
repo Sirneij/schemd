@@ -7,7 +7,7 @@ kind:ID "label" at (x, y) color [key=value flag]
 SOURCE.port -> TARGET.port color [route relation signal options]
 ```
 
-IDs are document-unique. Labels and quoted option values use backslash escaping. Colors are built-in tokens (`amber`, `blue`, `cyan`, `purple`, `slate`, `emerald`), validated CSS color literals, or safe host aliases; arbitrary markup and CSS injection are rejected.
+IDs are document-unique. Double quotes currently cannot appear inside labels or quoted option values; backslashes are preserved for the micro-math label grammar. Delimiter escaping remains a tracked language limitation. Colors are built-in tokens (`amber`, `blue`, `cyan`, `purple`, `slate`, `emerald`), validated CSS color literals, or safe host aliases; arbitrary markup and CSS injection are rejected.
 
 Declaration options are family-specific. The shared vocabulary is `type`, `orientation`, `inputs`, `outputs`, `width`, `standard`, `left`, `right`, `top`, `bottom`, `attributes`, `operations`, `stereotype`, `details`, `height`, `parameter`, `phase`, `matrix`, `operator`, `control`, `controls`, `targets`, and `wires`. Unknown, duplicate, malformed, or incompatible options are errors—not ignored metadata.
 

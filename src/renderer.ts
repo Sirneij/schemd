@@ -55,7 +55,7 @@ import {
 	type UmlComponent,
 	type UmlStateComponent
 } from './types.js';
-import { mathLabelTextWidth, renderMathLabelTspans } from './math-label.js';
+import { mathLabelText, mathLabelTextWidth, renderMathLabelTspans } from './math-label.js';
 import { escapeXml } from './xml.js';
 
 /**
@@ -119,12 +119,13 @@ export class BoundedSvgWriter {
 	 * @throws {SchematicSyntaxError} When the aggregate UTF-8 size exceeds the limit.
 	 */
 	append(chunk: string): void {
-		this.#bytes += utf8ByteLength(chunk);
-		if (this.#bytes > MAX_SCHEMATIC_SVG_OUTPUT_BYTES) {
+		const nextBytes = this.#bytes + utf8ByteLength(chunk);
+		if (nextBytes > MAX_SCHEMATIC_SVG_OUTPUT_BYTES) {
 			throw new SchematicSyntaxError(
 				`Compiled SVG exceeds the ${MAX_SCHEMATIC_SVG_OUTPUT_BYTES.toLocaleString('en-US')} byte output limit.`
 			);
 		}
+		this.#bytes = nextBytes;
 		this.#chunks.push(chunk);
 	}
 
@@ -1326,7 +1327,7 @@ function componentMarkup(
 	if (mode === 'full') {
 		const metadata = componentMetadata(component);
 		const ariaLabel = escapeXml(
-			`${component.id}, ${component.kind}, ${component.label}${metadata === '' ? '' : `, ${metadata}`}`
+			`${component.id}, ${component.kind}, ${mathLabelText(component.label)}${metadata === '' ? '' : `, ${metadata}`}`
 		);
 		/* A focusable group must not contain the full mode's focusable port controls. */
 		accessibility = `${portHooks ? '' : ' tabindex="0"'} role="group" aria-label="${ariaLabel}"`;

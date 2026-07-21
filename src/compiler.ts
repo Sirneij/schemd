@@ -1,6 +1,6 @@
 /** One-pass compiler facade for hosts that do not need the parser and renderer separately. */
 import { utf8ByteLength } from './limits.js';
-import { parseSchematic } from './parser.js';
+import { assertParsedSchematicDocument, parseSchematic } from './parser.js';
 import { renderSchematic } from './renderer.js';
 import type { CompileSchematicOptions, SchematicDocument } from './types.js';
 
@@ -61,6 +61,7 @@ export interface SchematicCompilation {
  * @returns Source-ordered node and wire declaration sites.
  */
 export function schematicSourceMap(document: SchematicDocument): SchematicSourceMap {
+	assertParsedSchematicDocument(document);
 	const nodes: SchematicNodeSource[] = [];
 	for (const component of document.components) {
 		nodes.push({ id: component.id, line: component.line });

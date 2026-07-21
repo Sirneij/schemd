@@ -88,7 +88,7 @@ const CONNECTION_PATTERN =
  * `schematic` identifier remains an input-only alias so previously persisted
  * articles continue to render; documentation and generated source never emit it.
  */
-const SCHEMD_FENCE_PATTERN = /^schemd\s+bounds="(\d+)x(\d+)"(?:\s+title="([^"]+)")?\s*$/i;
+const SCHEMD_FENCE_PATTERN = /^(?:schemd|schematic)\s+bounds="(\d+)x(\d+)"(?:\s+title="([^"]+)")?\s*$/i;
 /** Strict finite decimal syntax used by CSS functional-color channels. */
 const NUMBER_PATTERN = /^[+-]?(?:\d+\.?\d*|\.\d+)$/;
 /** CSS angle syntax accepted for HSL hue channels. */
@@ -168,7 +168,7 @@ function freezeParsedDocument(document: SchematicDocument): SchematicDocument {
 /**
  * Assert that a document originated from {@link parseSchematic} in this module.
  *
- * @param document - Candidate AST supplied to the renderer.
+ * @param document - Candidate AST supplied to a parsed-document consumer.
  * @throws {TypeError} When the object was forged, cloned, or parsed by another
  *   loaded copy of the package rather than this module instance.
  * @internal
@@ -176,7 +176,7 @@ function freezeParsedDocument(document: SchematicDocument): SchematicDocument {
 export function assertParsedSchematicDocument(document: SchematicDocument): void {
 	if (!parsedDocuments.has(document)) {
 		throw new TypeError(
-			'renderSchematic requires an immutable document returned by parseSchematic.'
+			'This operation requires an immutable document returned by parseSchematic.'
 		);
 	}
 }
@@ -1588,6 +1588,48 @@ function validateConnectionWidth(
 }
 
 /**
+ * Snapshot and validate the public parser's runtime fence boundary.
+ *
+ * TypeScript declarations do not protect JavaScript consumers, and retaining a
+ * caller-owned bounds object would let accessors or later mutation change the
+ * geometry contract between validation passes. The parser therefore consumes
+ * each field once and routes against a fresh data-only record.
+ */
+function normalizeParserFence(value: unknown): SchematicFence {
+	if (typeof value !== 'object' || value === null) {
+		throw new SchematicSyntaxError('Parser options must be an object.');
+	}
+	const candidate = value as Record<string, unknown>;
+	const rawBounds = candidate.bounds;
+	if (typeof rawBounds !== 'object' || rawBounds === null) {
+		throw new SchematicSyntaxError('Parser options require bounds.');
+	}
+	const bounds = rawBounds as Record<string, unknown>;
+	const width = bounds.width;
+	const height = bounds.height;
+	const title = candidate.title;
+	if (
+		typeof width !== 'number' ||
+		!Number.isInteger(width) ||
+		typeof height !== 'number' ||
+		!Number.isInteger(height) ||
+		width < 64 ||
+		height < 64 ||
+		width > 4096 ||
+		height > 4096
+	) {
+		throw new SchematicSyntaxError('Schematic bounds must be integers from 64 through 4096.');
+	}
+	if (typeof title !== 'string' || title.trim() === '') {
+		throw new SchematicSyntaxError('Schematic titles cannot be empty.');
+	}
+	if (title.length > MAX_FENCE_TITLE_LENGTH) {
+		throw new SchematicSyntaxError('Schematic titles cannot exceed 512 characters.');
+	}
+	return { bounds: { width, height }, title } satisfies SchematicFence;
+}
+
+/**
  * Parse and validate a schemd fenced-code information string.
  *
  * @param info - The complete Markdown fence information string beginning with
@@ -1602,7 +1644,7 @@ export function parseSchematicFence(
 	info: string | undefined,
 	defaultTitle = 'Engineering schematic'
 ): SchematicFence | undefined {
-	if (info === undefined || !/^schemd(?:\s|$)/i.test(info.trim())) {
+	if (info === undefined || !/^(?:schemd|schematic)(?:\s|$)/i.test(info.trim())) {
 		return undefined;
 	}
 	const match = info.trim().match(SCHEMD_FENCE_PATTERN);
@@ -1637,9 +1679,13 @@ export function parseSchematicFence(
  *   color values, component geometry, or connection geometry are invalid.
  */
 export function parseSchematic(source: string, fence: SchematicFence): SchematicDocument {
+	if (typeof source !== 'string') {
+		throw new SchematicSyntaxError('Schematic source must be a string.');
+	}
 	if (source.length > MAX_SCHEMATIC_SOURCE_CHARACTERS) {
 		throw new SchematicSyntaxError('Schematic source exceeds the 131,072 character limit.');
 	}
+	const normalizedFence = normalizeParserFence(fence);
 	const components: SchematicComponent[] = [];
 	const connections: SchematicConnection[] = [];
 	const componentIds = new Set<string>();
@@ -1656,7 +1702,7 @@ export function parseSchematic(source: string, fence: SchematicFence): Schematic
 			if (componentIds.has(component.id)) {
 				throw new SchematicSyntaxError(`Duplicate component ID ${component.id}.`, lineNumber);
 			}
-			validateComponent(component, fence);
+			validateComponent(component, normalizedFence);
 			componentIds.add(component.id);
 			components.push(component);
 			continue;
@@ -1681,8 +1727,8 @@ export function parseSchematic(source: string, fence: SchematicFence): Schematic
 		validateConnectionWidth(connection, componentsById);
 	}
 	const document = { components, connections } satisfies SchematicDocument;
-	const routes = validateDocumentGeometry(document, fence);
+	const routes = validateDocumentGeometry(document, normalizedFence);
 	const parsedDocument = freezeParsedDocument(document);
-	cacheParsedSchematicRoutes(parsedDocument, fence.bounds, routes);
+	cacheParsedSchematicRoutes(parsedDocument, normalizedFence.bounds, routes);
 	return parsedDocument;
 }
