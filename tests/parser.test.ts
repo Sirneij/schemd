@@ -433,18 +433,21 @@ U3.in -> U3.out #slate`,
 cnot:Q1 "CNOT" at (250, 100) #purple
 qgate:Q2 "RX" at (400, 100) #quantum
 resistor:R1 "R" at (520, 100) #amber`;
-		expect(() =>
-			parseSchematic(
-				`${prefix}\nG1.out2 -> G1.in3 #slate\nQ1.control -> Q1.target #slate\nQ2.out -> R1.in #slate`,
-				fence
-			)
-		).not.toThrow();
+		for (const edge of [
+			'Q1.in1 -> Q1.out1 #slate',
+			'Q1.in2 -> Q1.out2 #slate',
+			'Q1.control -> Q1.target #slate'
+		]) {
+			expect(() => parseSchematic(`${prefix}\n${edge}`, fence)).not.toThrow();
+		}
 		for (const edge of [
 			'G1.out3 -> G1.in #slate',
 			'G1.out -> G1.in0 #slate',
 			'G1.out -> G1.in01 #slate',
 			'G1.bad -> G1.in #slate',
 			'Q1.bad -> Q1.in #slate',
+			'Q1.out3 -> Q1.in1 #slate',
+			'Q1.out1 -> Q1.in3 #slate',
 			'Q2.bad -> Q2.in #slate',
 			'R1.out -> R1.bad #slate'
 		]) {

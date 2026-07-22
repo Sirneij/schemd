@@ -135,10 +135,15 @@ ic:U1 "Mux" at (1430, 180) [left="A0,A1" right="Y0,Y1" top="CLK" bottom="VSS"]`,
 		expect(resolvePortPoint(findComponent(document, 'H1'), 'out').x).toBe(948);
 		expect(resolvePortPoint(findComponent(document, 'QG1'), 'in').x).toBe(1092);
 		expect(resolvePortPoint(findComponent(document, 'QG1'), 'out').x).toBe(1188);
-		expect(resolvePortPoint(findComponent(document, 'CX1'), 'in').x).toBe(978);
-		expect(resolvePortPoint(findComponent(document, 'CX1'), 'out').x).toBe(1062);
-		expect(resolvePortPoint(findComponent(document, 'CX1'), 'control').y).toBe(164);
-		expect(resolvePortPoint(findComponent(document, 'CX1'), 'target').y).toBe(196);
+		const cnot = findComponent(document, 'CX1');
+		expect(resolvePortPoint(cnot, 'in')).toEqual({ x: 978, y: 171 });
+		expect(resolvePortPoint(cnot, 'out')).toEqual({ x: 1062, y: 171 });
+		expect(resolvePortPoint(cnot, 'in1')).toEqual({ x: 978, y: 171 });
+		expect(resolvePortPoint(cnot, 'in2')).toEqual({ x: 978, y: 189 });
+		expect(resolvePortPoint(cnot, 'out1')).toEqual({ x: 1062, y: 171 });
+		expect(resolvePortPoint(cnot, 'out2')).toEqual({ x: 1062, y: 189 });
+		expect(resolvePortPoint(cnot, 'control')).toEqual({ x: 1020, y: 171 });
+		expect(resolvePortPoint(cnot, 'target')).toEqual({ x: 1020, y: 189 });
 		expect(resolvePortPoint(findComponent(document, 'A1'), 'in').x).toBe(1212);
 		expect(resolvePortPoint(findComponent(document, 'A1'), 'in3').y).toBe(192);
 		expect(resolvePortPoint(findComponent(document, 'A1'), 'out').x).toBe(1308);
@@ -218,7 +223,7 @@ ic:U1 "IC" at (1360, 180) #slate [left="A,B" right="Y" top="CLK" bottom="GND"]`,
 		expect(ids('G1')).toEqual(['in']);
 		expect(ids('A1')).toEqual(['in1', 'in2', 'in3', 'out1', 'out2']);
 		expect(ids('H1')).toEqual(['in', 'out']);
-		expect(ids('C1')).toEqual(['in', 'out', 'control', 'target']);
+		expect(ids('C1')).toEqual(['in1', 'in2', 'out1', 'out2', 'control', 'target']);
 		expect(ids('Q1')).toEqual(['in', 'out']);
 		expect(ids('U1')).toEqual(['A', 'B', 'Y', 'CLK', 'GND']);
 		for (const component of document.components) {
@@ -444,7 +449,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 		expect(SCHEMATIC_BRIDGE_RADIUS).toBe(5);
 		expect(routed[0]!.d).toBe('M 92 120 H 408');
 		expect(routed[1]!.d).toContain('A 5 5');
-		expect(routed[1]!.d).toBe('M 250 56 V 115 A 5 5 0 0 0 250 125 V 184');
+		expect(routed[1]!.d).toBe('M 250 49 V 115 A 5 5 0 0 0 250 125 V 191');
 		expect(routed[1]!.points).toContainEqual({ x: 245, y: 120 });
 
 		const reversedVertical = routeConnections(
@@ -458,7 +463,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 			],
 			components
 		);
-		expect(reversedVertical[1]!.d).toBe('M 250 184 V 125 A 5 5 0 0 1 250 115 V 56');
+		expect(reversedVertical[1]!.d).toBe('M 250 191 V 125 A 5 5 0 0 1 250 115 V 49');
 	});
 
 	test('deduplicates coincident crossings and orders multiple horizontal bridge jumps', () => {
@@ -853,10 +858,10 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 			lookup.set(id, component);
 			return component;
 		};
-		const leftTop = terminal('LT', 50, 58);
-		const rightTop = terminal('RT', 450, 58);
-		const leftBottom = terminal('LB', 50, 182);
-		const rightBottom = terminal('RB', 450, 182);
+		const leftTop = terminal('LT', 50, 54);
+		const rightTop = terminal('RT', 450, 54);
+		const leftBottom = terminal('LB', 50, 186);
+		const rightBottom = terminal('RB', 450, 186);
 		const top: SchematicComponent = { kind: 'cnot', id: 'T', label: 'T', x: 250, y: 40, color: token, line: 1 };
 		const bottom: SchematicComponent = { ...top, id: 'B', y: 200 };
 		lookup.set(top.id, top);
@@ -876,7 +881,7 @@ ic:U1 "Chip" at (960, 180) [left="A" right="Y"]`,
 			connection(top, 'target', bottom, 'control')
 		], endpointOnlyMap);
 		expect(routes[2]!.d).toBe(
-			'M 250 56 A 2 2 0 0 0 250 60 V 180 A 2 2 0 0 0 250 184'
+			'M 250 49 A 5 5 0 0 0 250 59 V 181 A 5 5 0 0 0 250 191'
 		);
 	});
 

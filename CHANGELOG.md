@@ -2,6 +2,16 @@
 
 All notable changes to `@schemd/core` are recorded here. Dates describe actual npm publication dates; unpublished versions deliberately use `Unreleased`.
 
+## [0.3.3] - 07/21/2026
+
+### Changed
+
+- `cnot` is now an intrinsic two-track controlled-X with continuous control and target rails. Canonical `in1`/`out1` and `in2`/`out2` ports compose directly with quantum wires; legacy `in`, `out`, `control`, and `target` endpoint spellings remain valid.
+
+### Verified
+
+- A Chromium golden locks the two-rail CNOT geometry and its reversed horizontal orientation.
+
 ## [0.3.2] - 07/20/2026
 
 ### Added

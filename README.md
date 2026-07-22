@@ -100,6 +100,24 @@ H.out -> U.in #cyan [quantum]
 U.out -> M.in #purple [quantum]
 ```
 
+`cnot` is intrinsically a two-qubit gate. Its canonical through-rail ports are
+`in1`/`out1` for the control qubit and `in2`/`out2` for the target qubit. The
+legacy `in` and `out` spellings remain aliases of the first rail, while
+`control` and `target` address the two gate markers.
+
+```text
+prepare:Q0 "|0\\rangle" at (80, 120) #blue
+prepare:Q1 "|0\\rangle" at (80, 220) #blue
+cnot:CX "CX" at (360, 170) #purple
+measure:M0 "q0" at (650, 120) #emerald
+measure:M1 "q1" at (650, 220) #emerald
+
+Q0.out -> CX.in1 #blue [quantum line]
+Q1.out -> CX.in2 #blue [quantum line]
+CX.out1 -> M0.in #purple [quantum line]
+CX.out2 -> M1.in #purple [quantum line]
+```
+
 ## UML example
 
 ```text

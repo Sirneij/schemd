@@ -1505,7 +1505,8 @@ function validateEndpoint(
 				valid = endpoint.port === 'in';
 				break;
 			case 'cnot':
-				valid = ['in', 'out', 'control', 'target'].includes(endpoint.port);
+				valid = validIndexedPort(endpoint.port, 2, 2) ||
+					endpoint.port === 'control' || endpoint.port === 'target';
 				break;
 			case 'ic':
 				valid = validIcPort(component, endpoint.port);

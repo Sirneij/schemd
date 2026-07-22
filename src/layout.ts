@@ -633,10 +633,16 @@ export function resolvePortPoint(component: SchematicComponent, port: string): S
 			if (port === 'out') local = { x: quantumGateDimensions(component).stubExtent, y: 0 };
 			break;
 		case 'cnot':
-			if (port === 'in') local = left;
-			if (port === 'out') local = right;
-			if (port === 'control') local = { x: 0, y: -16 };
-			if (port === 'target') local = { x: 0, y: 16 };
+			if (port === 'in' || port === 'in1') {
+				local = { x: -42, y: quantumTrackCoordinate(0, 2) };
+			}
+			if (port === 'in2') local = { x: -42, y: quantumTrackCoordinate(1, 2) };
+			if (port === 'out' || port === 'out1') {
+				local = { x: 42, y: quantumTrackCoordinate(0, 2) };
+			}
+			if (port === 'out2') local = { x: 42, y: quantumTrackCoordinate(1, 2) };
+			if (port === 'control') local = { x: 0, y: quantumTrackCoordinate(0, 2) };
+			if (port === 'target') local = { x: 0, y: quantumTrackCoordinate(1, 2) };
 			break;
 		case 'junction':
 		case 'testpoint':
@@ -803,7 +809,7 @@ export function resolvePortGeometry(
 		case 'cnot':
 			if (port === 'control') return geometry({ x: 0, y: -1 });
 			if (port === 'target') return geometry({ x: 0, y: 1 });
-			return geometry(port === 'out' ? { x: 1, y: 0 } : { x: -1, y: 0 });
+			return geometry(port === 'out' || port.startsWith('out') ? { x: 1, y: 0 } : { x: -1, y: 0 });
 		case 'ic': {
 			const location = icPinLocation(component, port)!;
 			return geometry(sideNormal(location.side));
@@ -965,8 +971,10 @@ export function enumerateComponentPorts(component: SchematicComponent): readonly
 			return [namedPort(component, 'in')];
 		case 'cnot':
 			return [
-				namedPort(component, 'in'),
-				namedPort(component, 'out'),
+				namedPort(component, 'in1'),
+				namedPort(component, 'in2'),
+				namedPort(component, 'out1'),
+				namedPort(component, 'out2'),
 				namedPort(component, 'control'),
 				namedPort(component, 'target')
 			];
@@ -2566,7 +2574,7 @@ function componentHalfExtents(component: SchematicComponent): {
 			}
 			case 'cnot':
 				halfWidth = 42;
-				halfHeight = 26;
+				halfHeight = 24;
 				break;
 			case 'ic':
 				halfWidth = component.bodyWidth / 2 + 16;

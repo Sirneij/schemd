@@ -23,8 +23,8 @@ R1.out -> C1.in #slate
 C1.out -> G1.in1 #blue
 G1.out -> G2.in2 #cyan [bezier]
 G2.out -> Q1.in #purple
-Q1.out -> Q2.control #emerald
-Q2.target -> Q2.in #amber`;
+Q1.out -> Q2.in1 #emerald
+Q2.out2 -> Q2.in2 #amber`;
 
 describe('renderSchematic', () => {
 	test('emits intrinsic SSR SVG, semantic classes, every symbol, and lightweight bloom', () => {
@@ -50,7 +50,10 @@ describe('renderSchematic', () => {
 		expect(html).not.toMatch(/(?:fill|stroke)=["']#[A-Fa-f0-9]/);
 		expect(html.match(/class="schematic-component"/g)).toHaveLength(6);
 		expect(html.match(/class="schematic-glow-layer"/g)).toHaveLength(12);
-		expect(html.match(/data-port-id=/g)).toHaveLength(16);
+		expect(html.match(/data-port-id=/g)).toHaveLength(18);
+		expect(html).toContain(
+			'd="M -42 -9 H 42 M -42 9 H 42 M 0 -9 V 9 M -7 9 H 7 M 0 2 V 16"'
+		);
 		expect(html).toContain(
 			'data-node-id="R1" data-node-kind="resistor" data-node-label="10k &amp; stable"'
 		);

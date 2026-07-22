@@ -91,3 +91,15 @@ L2.out -> R2.in #purple [ortho marker-start=open-arrow marker-end=open-arrow net
 
 	await expect(page.locator('figure')).toHaveScreenshot('transparent-markers.png');
 });
+
+test('CNOT exposes two continuous qubit rails in every horizontal direction', async ({ page }) => {
+	await mountSchematic(
+		page,
+		`cnot:RIGHT "CX" at (120,90) #purple
+cnot:LEFT "CX" at (320,90) #emerald [orientation=left]`,
+		{ width: 440, height: 180 },
+		'Two-track CNOT'
+	);
+
+	await expect(page.locator('figure')).toHaveScreenshot('two-track-cnot.png');
+});

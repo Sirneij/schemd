@@ -958,7 +958,7 @@ function componentShape(
 		case 'ugate':
 			return quantumGateShell(component, paint);
 		case 'cnot':
-			return `<path ${paint} d="M -42 0 H 42 M 0 -26 V 26 M -8 16 H 8 M 0 8 V 24" /><circle ${nodePaint} cx="0" cy="-16" r="4" /><circle ${paint} cx="0" cy="16" r="10" />`;
+			return `<path ${paint} d="M -42 -9 H 42 M -42 9 H 42 M 0 -9 V 9 M -7 9 H 7 M 0 2 V 16" /><circle ${nodePaint} cx="0" cy="-9" r="4" /><circle ${paint} cx="0" cy="9" r="10" />`;
 		case 'ic':
 			return integratedCircuitShape(component, paint);
 		case 'source':
